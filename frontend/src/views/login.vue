@@ -15,6 +15,7 @@
           <v-text-field
             v-model="form.email"
             type="email"
+            placeholder="Email@agiletrack.com"
             variant="outlined"
             density="comfortable"
             :error-messages="errors.email"
@@ -27,6 +28,7 @@
           <v-text-field
             v-model="form.password"
             :type="showPass ? 'text' : 'password'"
+            placeholder="********"
             variant="outlined"
             density="comfortable"
             :error-messages="errors.password"
@@ -45,6 +47,7 @@
           <v-checkbox
             v-model="form.remember"
             label="Remember Me"
+            style="font-weight: 700"
             color="primary"
             density="compact"
             hide-details
@@ -74,7 +77,7 @@
 
           <p class="register-text">
             Don't have an account?
-            <a href="#">Sign Up</a>
+            <RouterLink to="/register">Sign Up</RouterLink>
           </p>
         </v-form>
       </div>
@@ -96,8 +99,10 @@ import { ref, reactive } from "vue";
 import { useAuthStore } from "../stores/auth";
 import type { LoginForm } from "../types";
 import "../assets/css/login.css";
+import bgImg from "../assets/image/bg.png";
+import { RouterLink } from "vue-router";
 
-const heroImage = ref<string>("");
+const heroImage = ref<string>(bgImg);
 
 const authStore = useAuthStore();
 

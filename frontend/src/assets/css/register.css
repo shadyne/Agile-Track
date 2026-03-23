@@ -1,6 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Barlow:wght@700;800&family=Nunito:wght@400;500;600;700&display=swap");
 
-.login-page {
+.register-page {
   display: flex;
   min-height: 100vh;
   font-family: "Nunito", sans-serif;
@@ -45,25 +45,64 @@
   margin-bottom: 28px;
 }
 
-.forgot-link {
+.strength-bars {
   display: flex;
-  justify-content: flex-start;
-  margin-top: -8px;
-  margin-bottom: 8px;
+  gap: 4px;
+  margin-top: 6px;
+  margin-bottom: 2px;
 }
 
-.forgot-link a {
-  font-size: 13px;
-  font-weight: 700;
-  color: #65a9ec;
-  text-decoration: none;
+.strength-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background-color: #e5e7eb;
+  transition: background-color 0.3s;
 }
 
-.forgot-link a:hover {
-  text-decoration: underline;
+.strength-bar.weak {
+  background-color: #e53935;
+}
+.strength-bar.medium {
+  background-color: #fb8c00;
+}
+.strength-bar.strong {
+  background-color: #43a047;
 }
 
-.register-text {
+.strength-label {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.strength-label.weak {
+  color: #e53935;
+}
+.strength-label.medium {
+  color: #fb8c00;
+}
+.strength-label.strong {
+  color: #43a047;
+}
+
+.match-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.match-info.match {
+  color: #43a047;
+}
+.match-info.no-match {
+  color: #e53935;
+}
+
+.login-text {
   text-align: center;
   margin-top: 16px;
   font-size: 13px;
@@ -71,13 +110,13 @@
   font-weight: 800;
 }
 
-.register-text a {
+.login-text a {
   color: #65a9ec;
   font-weight: 700;
   text-decoration: none;
 }
 
-.register-text a:hover {
+.login-text a:hover {
   text-decoration: underline;
 }
 
@@ -91,30 +130,12 @@
   overflow: hidden;
 }
 
-.input-label {
-  color: #020f40;
-  font-weight: 700;
-}
-.input-group {
-  margin-bottom: 16px;
+.hero-img {
+  width: 95%;
+  height: auto;
+  object-fit: cover;
 }
 
-.input-group label {
-  display: block;
-  margin-bottom: 6px;
-  font-weight: 500;
-}
-
-.input-group .v-field__outline {
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-}
-.v-input__control {
-  color: #020f40 !important;
-}
-.v-selection-control__overlay {
-  background-color: transparent !important;
-}
 @media (max-width: 768px) {
   .image-side {
     display: none;

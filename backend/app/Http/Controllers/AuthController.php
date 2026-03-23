@@ -37,6 +37,38 @@ class AuthController extends Controller
         ]);
     }
 
+    public function register(Request $request)
+{
+    $request->validate([
+        'name'                  => 'required|string|max:255',
+        'email'                 => 'required|email|unique:users,email',
+        'password'              => 'required|min:6|confirmed',
+        'password_confirmation' => 'required',
+    ], [
+        'email.unique'    => 'Email already registered !',
+        'password.min'    => 'Password minimal 6 karakter',
+        'password.confirmed' => 'Password tidak cocok',
+    ]);
+
+    $user = User::create([
+        'name'     => $request->name,
+        'email'    => $request->email,
+        'password' => Hash::make($request->password),
+    ]);
+
+    $token = $user->createToken('auth_token')->plainTextToken;
+
+    return response()->json([
+        'message' => 'Register berhasil',
+        'token'   => $token,
+        'user'    => [
+            'id'    => $user->id,
+            'name'  => $user->name,
+            'email' => $user->email,
+        ]
+    ], 201);
+}
+
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
