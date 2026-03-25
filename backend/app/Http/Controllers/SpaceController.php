@@ -72,7 +72,6 @@ class SpaceController extends Controller
             ->where('user_id', $request->user()->id)
             ->firstOrFail();
 
-        // Tasks otomatis kehapus karena cascadeOnDelete di migration
         $space->delete();
 
         return response()->json(['message' => 'Space berhasil dihapus']);

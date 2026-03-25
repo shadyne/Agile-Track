@@ -1,151 +1,20 @@
 <template>
   <div class="dashboard-layout">
-    <aside class="sidebar">
-      <div class="sidebar-brand">
-        <span>AGILE</span>
-        <v-icon icon="mdi-approximately-equal" size="20" />
-        <span>TRACK</span>
-      </div>
-
-      <nav class="sidebar-menu">
-        <RouterLink
-          to="/"
-          class="menu-item"
-          :class="{ active: activeView === 'dashboard' }"
-          @click="activeView = 'dashboard'"
-        >
-          <v-icon icon="mdi-view-dashboard-outline" size="18" />
-          Dashboard
-        </RouterLink>
-
-        <a class="menu-item" @click="showRecent = true" style="cursor: pointer">
-          <v-icon icon="mdi-clock-outline" size="18" />
-          Recent
-        </a>
-
-        <div class="spaces-header" :class="{ active: spacesExpanded }">
-          <div
-            class="spaces-header-left"
-            @click="spacesExpanded = !spacesExpanded"
-          >
-            <v-icon
-              :icon="spacesExpanded ? 'mdi-chevron-down' : 'mdi-chevron-right'"
-              size="16"
-            />
-            <v-icon icon="mdi-square-outline" size="16" />
-            <span>Spaces</span>
-          </div>
-          <v-btn
-            icon="mdi-plus"
-            variant="text"
-            density="compact"
-            size="x-small"
-            color="#020f40"
-            @click.stop="openCreateSpace"
-          />
-        </div>
-
-        <div v-if="spacesExpanded" class="space-list">
-          <div
-            v-for="space in spaceStore.spaces"
-            :key="space.id"
-            class="space-item"
-            :class="{
-              active: activeView === 'space' && activeSpaceId === space.id,
-            }"
-            @click="pilihSpace(space.id)"
-          >
-            <div class="space-item-left">
-              <v-icon icon="mdi-chevron-right" size="14" color="#020f40" />
-              <span class="space-name">{{ space.nama }}</span>
-            </div>
-
-            <div class="space-item-actions" @click.stop>
-              <v-btn
-                icon="mdi-plus"
-                variant="text"
-                style="
-                  background-color: #0034f61a;
-                  border-radius: 4px;
-                  border: 1px solid #0034f61a;
-                  font-weight: 700;
-                "
-                size="20"
-                color="#020f40"
-                @click="openCreateBoard(space)"
-              />
-              <v-menu location="right">
-                <template #activator="{ props: menuProps }">
-                  <v-btn
-                    icon="mdi-dots-horizontal"
-                    variant="text"
-                    size="20"
-                    style="
-                      background-color: #0034f61a;
-                      border-radius: 4px;
-                      border: 1px solid #0034f61a;
-                      font-weight: 700;
-                    "
-                    color="#020f40"
-                    v-bind="menuProps"
-                  />
-                </template>
-                <v-list
-                  density="compact"
-                  min-width="160"
-                  rounded="lg"
-                  elevation="3"
-                >
-                  <v-list-item
-                    prepend-icon="mdi-pencil-outline"
-                    title="Edit Space"
-                    @click="openEditSpace(space)"
-                  />
-                  <v-list-item
-                    prepend-icon="mdi-trash-can-outline"
-                    title="Delete Space"
-                    base-color="cancel"
-                    @click="openDeleteSpace(space)"
-                  />
-                </v-list>
-              </v-menu>
-            </div>
-          </div>
-
-          <p v-if="spaceStore.spaces.length === 0" class="no-space-text">
-            Belum ada space
-          </p>
-        </div>
-      </nav>
-    </aside>
+    <SidebarComponent
+      v-model:active-view="activeView"
+      v-model:active-space-id="activeSpaceId"
+      :active-board-id="activeBoardId"
+      @open-recent="showRecent = true"
+      @open-create-space="openCreateSpace"
+      @open-edit-space="openEditSpace"
+      @open-delete-space="openDeleteSpace"
+      @open-create-board="openCreateBoard"
+      @open-delete-board="openDeleteBoard"
+      @space-selected="ambilData"
+    />
 
     <div class="main-area">
-      <header class="topbar">
-        <div class="search-wrap">
-          <v-text-field
-            v-model="searchQuery"
-            placeholder="Search"
-            variant="outlined"
-            density="compact"
-            prepend-inner-icon="mdi-magnify"
-            hide-details
-            bg-color="field"
-            color="primary"
-          />
-        </div>
-
-        <div class="topbar-actions">
-          <button class="topbar-icon-btn">
-            <v-icon icon="mdi-bell-outline" size="20" />
-          </button>
-          <button class="topbar-icon-btn">
-            <v-icon icon="mdi-cog-outline" size="20" />
-          </button>
-          <v-avatar size="36" class="avatar-btn">
-            <v-icon>mdi-account-circle</v-icon>
-          </v-avatar>
-        </div>
-      </header>
+      <TopbarComponent />
 
       <main class="content-area">
         <div v-if="loading" class="flex items-center justify-center h-64">
@@ -198,8 +67,10 @@
                 />
               </div>
             </div>
-
-            <RecentActivityModal v-model="showRecent" :space-id="SPACE_ID" />
+            <RecentActivityModal
+              v-model="showRecent"
+              :space-id="activeSpaceId"
+            />
             <CreateSpaceModal
               v-model="showCreateSpace"
               :edit-data="editSpaceData"
@@ -217,6 +88,14 @@
               :space="selectedSpaceForBoard"
               @created="onBoardCreated"
             />
+            <DeleteBoardModal
+              v-if="deleteBoardData"
+              v-model="showDeleteBoard"
+              :space-id="deleteBoardData.spaceId"
+              :board-id="deleteBoardData.boardId"
+              :board-name="deleteBoardData.boardName"
+              @deleted="onBoardDeleted"
+            />
           </div>
         </template>
       </main>
@@ -226,7 +105,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { RouterLink, useRoute } from "vue-router";
+import { RouterLink, useRouter } from "vue-router";
 import { Bar, Pie } from "vue-chartjs";
 import {
   Chart as ChartJS,
@@ -239,13 +118,16 @@ import {
 } from "chart.js";
 import api from "../api/axios";
 import { useAuthStore } from "../stores/auth";
-import type { DashboardData, DashboardSummary, Space } from "../types";
+import type { DashboardData, DashboardSummary, Space, Board } from "../types";
 import "../assets/css/dashboard.css";
 import RecentActivityModal from "@/components/RecentActivityModal.vue";
 import CreateSpaceModal from "../components/CreateSpaceModal.vue";
 import DeleteSpaceModal from "../components/DeleteSpaceModal.vue";
 import CreateBoardModal from "../components/CreateBoardModal.vue";
+import DeleteBoardModal from "../components/DeleteBoardModal.vue";
 import { useSpaceStore } from "@/stores/space";
+import TopbarComponent from "@/components/TopbarComponent.vue";
+import SidebarComponent from "@/components/SidebarComponent.vue";
 
 ChartJS.register(
   CategoryScale,
@@ -257,7 +139,7 @@ ChartJS.register(
 );
 
 const SPACE_ID = 1;
-const route = useRoute();
+const router = useRouter();
 const authStore = useAuthStore();
 const spaceStore = useSpaceStore();
 
@@ -267,11 +149,19 @@ const showRecent = ref<boolean>(false);
 const showCreateSpace = ref<boolean>(false);
 const showDeleteSpace = ref<boolean>(false);
 const showCreateBoard = ref<boolean>(false);
+const showDeleteBoard = ref<boolean>(false);
 const spacesExpanded = ref<boolean>(true);
+const expandedSpaces = ref<number[]>([]);
 const editSpaceData = ref<Space | null>(null);
 const deleteSpaceData = ref<Space | null>(null);
 const selectedSpaceForBoard = ref<Space | null>(null);
+const deleteBoardData = ref<{
+  spaceId: number;
+  boardId: number;
+  boardName: string;
+} | null>(null);
 const activeSpaceId = ref<number>(0);
+const activeBoardId = ref<number>(0);
 const searchQuery = ref<string>("");
 const loading = ref<boolean>(false);
 const dashboardData = ref<DashboardData | null>(null);
@@ -279,6 +169,21 @@ const dashboardData = ref<DashboardData | null>(null);
 const userInitial = computed<string>(
   () => authStore.user?.name?.charAt(0).toUpperCase() || "U",
 );
+
+const toggleSpace = (spaceId: number): void => {
+  activeSpaceId.value = spaceId;
+  activeView.value = "space";
+
+  const idx = expandedSpaces.value.indexOf(spaceId);
+  if (idx === -1) {
+    expandedSpaces.value.push(spaceId);
+    spaceStore.ambilBoards(spaceId);
+  } else {
+    expandedSpaces.value.splice(idx, 1);
+  }
+
+  ambilData();
+};
 
 const summaryCards = [
   { key: "completed", label: "Completed", icon: "mdi-checkbox-marked-outline" },
@@ -290,6 +195,7 @@ const summaryCards = [
 const barChartData = computed(() => {
   if (!dashboardData.value) return null;
   const pb = dashboardData.value.priority_breakdown;
+
   return {
     labels: ["Highest", "High", "Medium", "Low", "Lowest"],
     datasets: [
@@ -318,8 +224,13 @@ const barOptions = {
   scales: {
     y: {
       beginAtZero: true,
+      max: 100,
       grid: { color: "rgba(130,144,164,0.2)" },
-      ticks: { color: "#65A9EC", font: { size: 11 } },
+      ticks: {
+        stepSize: 10,
+        color: "#65A9EC",
+        font: { size: 11 },
+      },
     },
     x: {
       grid: { display: false },
@@ -370,15 +281,33 @@ const pieOptions = {
   },
 };
 
-const onBoardCreated = (): void => {
-  // refresh list board di sidebar
+const toggleExpandSpace = (spaceId: number): void => {
+  const idx = expandedSpaces.value.indexOf(spaceId);
+  if (idx === -1) {
+    expandedSpaces.value.push(spaceId);
+    spaceStore.ambilBoards(spaceId);
+  } else {
+    expandedSpaces.value.splice(idx, 1);
+  }
 };
 
 const pilihSpace = (id: number): void => {
   activeSpaceId.value = id;
   activeView.value = "space";
-
+  if (!expandedSpaces.value.includes(id)) {
+    expandedSpaces.value.push(id);
+    spaceStore.ambilBoards(id);
+  }
   ambilData();
+};
+
+const pilihBoard = (board: Board): void => {
+  activeBoardId.value = board.id;
+  router.push(`/board/${board.id}`);
+};
+
+const goToBoardSetting = (board: Board): void => {
+  // router.push(`/board/${board.id}/setting`)
 };
 
 const openCreateSpace = (): void => {
@@ -401,6 +330,15 @@ const openCreateBoard = (space: Space): void => {
   showCreateBoard.value = true;
 };
 
+const openDeleteBoard = (space: Space, board: Board): void => {
+  deleteBoardData.value = {
+    spaceId: space.id,
+    boardId: board.id,
+    boardName: board.nama,
+  };
+  showDeleteBoard.value = true;
+};
+
 const onSpaceSaved = (): void => {
   if (spaceStore.spaces.length > 0 && activeSpaceId.value === 0) {
     activeSpaceId.value = spaceStore.spaces[0]?.id ?? 0;
@@ -419,22 +357,31 @@ const onSpaceDeleted = (): void => {
   }
 };
 
-onMounted(async () => {
-  await spaceStore.ambilSpaces();
-  activeView.value = "dashboard";
-  if (spaceStore.spaces.length > 0) {
-    activeSpaceId.value = spaceStore.spaces[0]?.id ?? 0;
-    ambilData();
+const onBoardCreated = (): void => {
+  if (selectedSpaceForBoard.value) {
+    const spaceId = selectedSpaceForBoard.value.id;
+    if (!expandedSpaces.value.includes(spaceId)) {
+      expandedSpaces.value.push(spaceId);
+    }
   }
-});
+};
+
+const onBoardDeleted = (): void => {
+  activeBoardId.value = 0;
+};
 
 const ambilData = async (): Promise<void> => {
-  if (!activeSpaceId.value) return;
   loading.value = true;
+
   try {
-    const res = await api.get<DashboardData>(
-      `/spaces/${activeSpaceId.value}/dashboard`,
-    );
+    let res;
+
+    if (activeView.value === "dashboard") {
+      res = await api.get("/dashboard");
+    } else {
+      res = await api.get(`/spaces/${activeSpaceId.value}/dashboard`);
+    }
+
     dashboardData.value = res.data;
   } catch (err) {
     console.error("Gagal ambil data dashboard:", err);
@@ -442,14 +389,12 @@ const ambilData = async (): Promise<void> => {
     loading.value = false;
   }
 };
-
 onMounted(async () => {
   await spaceStore.ambilSpaces();
+  activeView.value = "dashboard";
   if (spaceStore.spaces.length > 0) {
     activeSpaceId.value = spaceStore.spaces[0]?.id ?? 0;
-    if (activeSpaceId.value) {
-      ambilData();
-    }
+    if (activeSpaceId.value) ambilData();
   }
 });
 </script>

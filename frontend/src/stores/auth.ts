@@ -8,6 +8,11 @@ export const useAuthStore = defineStore("auth", () => {
   const user = ref<User | null>(null);
   const token = ref<string | null>(localStorage.getItem("token"));
 
+  async function fetchUser() {
+    const res = await api.get("/me");
+    user.value = res.data;
+  }
+
   const login = async (email: string, password: string): Promise<void> => {
     const res = await api.post<AuthResponse>("/login", { email, password });
 
@@ -43,5 +48,5 @@ export const useAuthStore = defineStore("auth", () => {
 
   const isLoggedIn = (): boolean => !!token.value;
 
-  return { user, token, login, register, logout, isLoggedIn };
+  return { user, token, login, register, logout, isLoggedIn, fetchUser };
 });

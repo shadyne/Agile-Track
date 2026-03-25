@@ -77,7 +77,6 @@ const emit = defineEmits<{
 
 const isOpen = ref<boolean>(props.modelValue);
 
-// Sync v-model
 watch(
   () => props.modelValue,
   (val) => {

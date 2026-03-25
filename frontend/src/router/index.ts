@@ -7,6 +7,8 @@ import RegisterView from "../views/register.vue";
 import LoginView from "../views/login.vue";
 import RegisterSuccessView from "../views/registerSuccess.vue";
 import DashboardView from "../views/dashboard.vue";
+import BoardView from "../views/board.vue";
+import EpicDetailView from "../views/epicDetail.vue";
 
 const routes: RouteRecordRaw[] = [
   {
@@ -31,6 +33,18 @@ const routes: RouteRecordRaw[] = [
     path: "/",
     name: "dashboard",
     component: DashboardView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/board/:boardId",
+    name: "board",
+    component: BoardView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/board/:boardId/epic/:epicId",
+    name: "epic-detail",
+    component: EpicDetailView,
     meta: { requiresAuth: true },
   },
 ];

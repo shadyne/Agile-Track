@@ -21,7 +21,7 @@ class Space extends Model
 
     public function tasks(): HasMany
     {
-        return $this->hasMany(Task::class);
+        return $this->hasMany(Task::class, 'space_id');
     }
     public function boards(): HasMany
 {

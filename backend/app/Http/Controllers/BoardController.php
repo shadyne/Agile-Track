@@ -19,6 +19,17 @@ class BoardController extends Controller
         return response()->json($boards);
     }
 
+    public function show(Request $request, $boardId)
+{
+    $board = Board::with('space')
+        ->whereHas('space', function ($q) use ($request) {
+            $q->where('user_id', $request->user()->id);
+        })
+        ->findOrFail($boardId);
+
+    return response()->json($board);
+}
+
     public function store(Request $request, $spaceId)
     {
         $space = Space::where('id', $spaceId)
@@ -45,6 +56,30 @@ class BoardController extends Controller
             'data'    => $board,
         ], 201);
     }
+
+    public function update(Request $request, $spaceId, $boardId)
+{
+    $board = Board::whereHas('space', function ($q) use ($request) {
+            $q->where('user_id', $request->user()->id);
+        })
+        ->where('space_id', $spaceId)
+        ->where('id', $boardId)
+        ->firstOrFail();
+
+    $request->validate([
+        'nama'            => 'required|string|max:255',
+        'framework'       => 'required|in:scrum,kanban',
+        'member_emails'   => 'nullable|array',
+        'member_emails.*' => 'email',
+    ]);
+
+    $board->update($request->only(['nama', 'framework', 'member_emails']));
+
+    return response()->json([
+        'message' => 'Board berhasil diupdate',
+        'data'    => $board,
+    ]);
+}
 
     public function destroy(Request $request, $spaceId, $boardId)
     {

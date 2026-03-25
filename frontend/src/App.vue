@@ -1,7 +1,15 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { onMounted } from "vue";
+import { useAuthStore } from "./stores/auth";
+
+const authStore = useAuthStore();
+onMounted(() => {
+  authStore.fetchUser();
+});
+</script>
 
 <template>
- <router-view />
+  <router-view />
 </template>
 
 <style scoped></style>

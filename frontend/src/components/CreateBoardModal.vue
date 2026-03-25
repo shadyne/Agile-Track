@@ -16,7 +16,6 @@
               :items="frameworkOptions"
               item-title="label"
               item-value="value"
-              variant="outlined"
               placeholder="Pilih framework"
               :error-messages="errors.framework"
             />
@@ -26,7 +25,6 @@
             <label class="field-label">Name <span class="req">*</span></label>
             <v-text-field
               v-model="form.nama"
-              variant="outlined"
               placeholder="Board name"
               :error-messages="errors.nama"
             />
@@ -36,8 +34,7 @@
             <label class="field-label">Bring team along</label>
             <v-select
               v-model="form.member_emails"
-              variant="outlined"
-              :items="memberOptions"
+              :items="spaceMembers"
               item-title="title"
               item-value="value"
               placeholder="Pilih member"
@@ -45,7 +42,7 @@
               chips
               closable-chips
               :no-data-text="
-                memberOptions.length === 0
+                spaceMembers.length === 0
                   ? 'Belum ada member di space ini'
                   : 'Member tidak ditemukan'
               "
@@ -125,7 +122,7 @@ const frameworkOptions = [
   { label: "Kanban", value: "kanban" },
 ];
 
-const memberOptions = computed(() => {
+const spaceMembers = computed(() => {
   const members = props.space?.member_emails ?? [];
   return members.map((email) => ({
     title: email,
@@ -183,3 +180,55 @@ const handleSubmit = async (): Promise<void> => {
   }
 };
 </script>
+
+<style scoped>
+.modal-header {
+  padding: 24px 24px 8px;
+}
+
+.modal-title {
+  font-family: "Barlow", sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  color: #020f40;
+}
+
+.modal-body {
+  padding: 8px 24px 0 !important;
+}
+
+.field-wrap {
+  margin-bottom: 4px;
+}
+
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.req {
+  color: #dc3434;
+}
+
+.modal-actions {
+  padding: 12px 14px 14px;
+  gap: 4px;
+  justify-content: space-around;
+}
+
+.action-btn {
+  min-width: 130px;
+  min-height: 40px;
+  border-radius: 8px;
+  font-weight: 600;
+  color: white !important;
+}
+
+.create-btn-text {
+  color: #020f40;
+  font-weight: 600;
+}
+</style>

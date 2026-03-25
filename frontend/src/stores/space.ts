@@ -6,6 +6,7 @@ import type { Space, SpaceForm, Board, BoardForm } from "../types";
 export const useSpaceStore = defineStore("space", () => {
   const spaces = ref<Space[]>([]);
   const loading = ref<boolean>(false);
+  const boardsBySpace = ref<Record<number, Board[]>>({});
 
   const ambilSpaces = async (): Promise<void> => {
     loading.value = true;
@@ -35,9 +36,13 @@ export const useSpaceStore = defineStore("space", () => {
     spaces.value = spaces.value.filter((s) => s.id !== id);
   };
 
-  const ambilBoards = async (spaceId: number): Promise<Board[]> => {
-    const res = await api.get<Board[]>(`/spaces/${spaceId}/boards`);
-    return res.data;
+  const ambilBoards = async (spaceId: number): Promise<void> => {
+    try {
+      const res = await api.get<Board[]>(`/spaces/${spaceId}/boards`);
+      boardsBySpace.value[spaceId] = res.data;
+    } catch (err) {
+      console.error("Gagal ambil boards:", err);
+    }
   };
 
   const createBoard = async (
@@ -45,7 +50,23 @@ export const useSpaceStore = defineStore("space", () => {
     form: BoardForm,
   ): Promise<Board> => {
     const res = await api.post(`/spaces/${spaceId}/boards`, form);
-    return res.data.data;
+    const board = res.data.data;
+    if (!boardsBySpace.value[spaceId]) {
+      boardsBySpace.value[spaceId] = [];
+    }
+    boardsBySpace.value[spaceId].push(board);
+    return board;
+  };
+
+  const updateBoard = async (
+    spaceId: number,
+    boardId: number,
+    form: BoardForm,
+  ): Promise<void> => {
+    const res = await api.put(`/spaces/${spaceId}/boards/${boardId}`, form);
+    const boards = boardsBySpace.value[spaceId] ?? [];
+    const idx = boards.findIndex((b) => b.id === boardId);
+    if (idx !== -1) boards[idx] = res.data.data;
   };
 
   const deleteBoard = async (
@@ -53,17 +74,28 @@ export const useSpaceStore = defineStore("space", () => {
     boardId: number,
   ): Promise<void> => {
     await api.delete(`/spaces/${spaceId}/boards/${boardId}`);
+    if (boardsBySpace.value[spaceId]) {
+      boardsBySpace.value[spaceId] = boardsBySpace.value[spaceId].filter(
+        (b) => b.id !== boardId,
+      );
+    }
+  };
+  const getBoardsBySpace = (spaceId: number): Board[] => {
+    return boardsBySpace.value[spaceId] ?? [];
   };
 
   return {
     spaces,
     loading,
+    boardsBySpace,
     ambilSpaces,
     createSpace,
     updateSpace,
     deleteSpace,
     ambilBoards,
     createBoard,
+    updateBoard,
     deleteBoard,
+    getBoardsBySpace,
   };
 });

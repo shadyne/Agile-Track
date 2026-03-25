@@ -172,7 +172,6 @@ const loading = ref<boolean>(false);
 const errorRegister = ref<string>("");
 const strengthScore = ref<number>(0);
 
-// Hitung password strength
 const checkStrength = (): void => {
   const p = form.password;
   let score = 0;
