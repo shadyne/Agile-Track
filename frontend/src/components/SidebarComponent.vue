@@ -200,6 +200,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "update:activeView", val: "dashboard" | "space"): void;
   (e: "update:activeSpaceId", val: number): void;
+  (e: "update:activeBoardId", val: number): void;
   (e: "openRecent"): void;
   (e: "openCreateSpace"): void;
   (e: "openEditSpace", space: Space): void;
@@ -228,8 +229,10 @@ const toggleSpace = (spaceId: number): void => {
     expandedSpaces.value.splice(idx, 1);
   }
 };
-
 const pilihBoard = (board: Board): void => {
+  emit("update:activeView", "space");
+  emit("update:activeSpaceId", board.space_id);
+  emit("update:activeBoardId", board.id);
   router.push(`/board/${board.id}`);
 };
 </script>

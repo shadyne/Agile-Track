@@ -14,8 +14,20 @@
     />
 
     <div class="main-area">
-      <TopbarComponent />
-
+      <TopbarComponent>
+        <template #actions>
+          <v-btn
+            v-if="activeTab === 'timeline' || activeTab === 'backlog'"
+            color="second-btn"
+            prepend-icon="mdi-plus"
+            @click="handleCreateClick"
+            style="color: white"
+          >
+            Create
+          </v-btn>
+        </template>
+      </TopbarComponent>
+      <router-view @updateTab="activeTab = $event" />
       <main class="content-area">
         <div v-if="loading" class="flex items-center justify-center h-64">
           <v-progress-circular indeterminate color="primary" />
@@ -96,6 +108,19 @@
               :board-name="deleteBoardData.boardName"
               @deleted="onBoardDeleted"
             />
+
+            <CreateEpicModal
+              v-model="showCreateEpic"
+              :board-id="boardId"
+              @created="onEpicCreated"
+            />
+            <CreateTaskModal
+              v-model="showCreateTask"
+              :board-id="boardId"
+              :board-members="boardMembers"
+              :available-labels="allLabels"
+              @created="handleTaskCreated"
+            />
           </div>
         </template>
       </main>
@@ -128,6 +153,8 @@ import DeleteBoardModal from "../components/DeleteBoardModal.vue";
 import { useSpaceStore } from "@/stores/space";
 import TopbarComponent from "@/components/TopbarComponent.vue";
 import SidebarComponent from "@/components/SidebarComponent.vue";
+import CreateTaskModal from "../components/CreateTaskModal.vue";
+import CreateEpicModal from "../components/CreateEpicModal.vue";
 
 ChartJS.register(
   CategoryScale,
@@ -150,6 +177,9 @@ const showCreateSpace = ref<boolean>(false);
 const showDeleteSpace = ref<boolean>(false);
 const showCreateBoard = ref<boolean>(false);
 const showDeleteBoard = ref<boolean>(false);
+const showCreateEpic = ref<boolean>(false);
+const showCreateTask = ref<boolean>(false);
+
 const spacesExpanded = ref<boolean>(true);
 const expandedSpaces = ref<number[]>([]);
 const editSpaceData = ref<Space | null>(null);
@@ -169,6 +199,8 @@ const dashboardData = ref<DashboardData | null>(null);
 const userInitial = computed<string>(
   () => authStore.user?.name?.charAt(0).toUpperCase() || "U",
 );
+
+const activeTab = ref<"timeline" | "backlog" | null>(null);
 
 const toggleSpace = (spaceId: number): void => {
   activeSpaceId.value = spaceId;
@@ -387,6 +419,14 @@ const ambilData = async (): Promise<void> => {
     console.error("Gagal ambil data dashboard:", err);
   } finally {
     loading.value = false;
+  }
+};
+
+const handleCreateClick = () => {
+  if (activeTab.value === "timeline") {
+    showCreateEpic.value = true;
+  } else if (activeTab.value === "backlog") {
+    showCreateTask.value = true;
   }
 };
 onMounted(async () => {

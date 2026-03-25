@@ -1,39 +1,6 @@
 <template>
   <div class="dashboard-layout">
-    <SidebarComponent
-      v-model:active-view="activeView"
-      v-model:active-space-id="activeSpaceId"
-      :active-board-id="boardId"
-      @open-recent="showRecent = true"
-      @open-create-space="showCreateSpace = true"
-      @open-edit-space="(s) => (editSpaceData = s)"
-      @open-delete-space="(s) => (deleteSpaceData = s)"
-      @open-create-board="(s) => (selectedSpace = s)"
-      @open-delete-board="
-        (s, b) =>
-          (deleteBoardData = {
-            spaceId: s.id,
-            boardId: b.id,
-            boardName: b.nama,
-          })
-      "
-      @space-selected="(id) => (activeSpaceId = id)"
-    />
-
     <div class="main-area">
-      <TopbarComponent>
-        <template #actions>
-          <v-btn
-            color="second-btn"
-            prepend-icon="mdi-plus"
-            @click="handleCreateClick"
-            style="color: white"
-          >
-            Create
-          </v-btn>
-        </template>
-      </TopbarComponent>
-
       <div class="board-title-area">
         <h1 class="board-title">{{ board?.nama?.toUpperCase() }}</h1>
       </div>
@@ -328,27 +295,13 @@
         />
       </template>
     </div>
-
-    <CreateEpicModal
-      v-model="showCreateEpic"
-      :board-id="boardId"
-      @created="onEpicCreated"
-    />
-    <CreateTaskModal
-      v-model="showCreateTask"
-      :board-id="boardId"
-      :board-members="boardMembers"
-      :available-labels="allLabels"
-      @created="handleTaskCreated"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import { useAuthStore } from "../stores/auth";
-import CreateEpicModal from "../components/CreateEpicModal.vue";
 import api from "../api/axios";
 import type { Epic, Board, Space } from "../types";
 import "../assets/css/dashboard.css";
@@ -356,7 +309,6 @@ import "../assets/css/board.css";
 import TopbarComponent from "@/components/TopbarComponent.vue";
 import SidebarComponent from "@/components/SidebarComponent.vue";
 import BacklogView from "../components/BacklogComponent.vue";
-import CreateTaskModal from "../components/CreateTaskModal.vue";
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -390,6 +342,14 @@ const filterEpic = ref("All");
 const filterType = ref("All");
 const filterLabel = ref("All");
 const filterStatus = ref("All");
+
+const emit = defineEmits<{
+  (e: "updateTab", val: "timeline" | "backlog"): void;
+}>();
+
+watch(activeTab, (val) => {
+  emit("updateTab", val);
+});
 
 const viewModes = [
   { label: "Today", value: "today" },
