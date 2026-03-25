@@ -9,6 +9,7 @@ import RegisterSuccessView from "../views/registerSuccess.vue";
 import DashboardView from "../views/dashboard.vue";
 import BoardView from "../views/board.vue";
 import EpicDetailView from "../views/epicDetail.vue";
+import ItemDetailView from "../views/taskDetail.vue";
 
 const routes: RouteRecordRaw[] = [
   {
@@ -47,6 +48,12 @@ const routes: RouteRecordRaw[] = [
     component: EpicDetailView,
     meta: { requiresAuth: true },
   },
+  {
+    path: "/board/:boardId/item/:itemId",
+    name: "item-detail",
+    component: ItemDetailView,
+    meta: { requiresAuth: true },
+  },
 ];
 
 const router = createRouter({
@@ -56,7 +63,6 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem("token");
-
   if (to.meta.requiresAuth && !token) {
     next("/login");
   } else if (to.meta.guest && token) {

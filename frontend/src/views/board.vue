@@ -26,7 +26,7 @@
           <v-btn
             color="second-btn"
             prepend-icon="mdi-plus"
-            @click="showCreateEpic = true"
+            @click="handleCreateClick"
             style="color: white"
           >
             Create
@@ -57,10 +57,20 @@
 
       <template v-if="activeTab === 'timeline'">
         <div class="timeline-filters">
-          <div v-for="i in 5" :key="i" class="avatar-filter">
-            <v-icon icon="mdi-account" size="16" color="#8290A4" />
+          <div class="avatar-filter-group">
+            <div
+              v-for="member in boardMembers"
+              :key="member.id"
+              class="avatar-filter"
+              :class="{ active: filterUserId === member.id }"
+              :title="member.name"
+              @click="toggleUserFilter(member.id)"
+            >
+              <span style="color: #020f40; font-size: 11px; font-weight: 700">
+                {{ member.name.charAt(0).toUpperCase() }}
+              </span>
+            </div>
           </div>
-
           <div class="filter-divider" />
 
           <v-select
@@ -310,9 +320,12 @@
       </template>
 
       <template v-else-if="activeTab === 'backlog'">
-        <div class="flex items-center justify-center h-64 text-gray-400">
-          <p>Backlog coming soon...</p>
-        </div>
+        <BacklogView
+          ref="backlogRef"
+          :board-id="boardId"
+          :epics="epics"
+          :board-members="boardMembers"
+        />
       </template>
     </div>
 
@@ -320,6 +333,13 @@
       v-model="showCreateEpic"
       :board-id="boardId"
       @created="onEpicCreated"
+    />
+    <CreateTaskModal
+      v-model="showCreateTask"
+      :board-id="boardId"
+      :board-members="boardMembers"
+      :available-labels="allLabels"
+      @created="handleTaskCreated"
     />
   </div>
 </template>
@@ -335,6 +355,8 @@ import "../assets/css/dashboard.css";
 import "../assets/css/board.css";
 import TopbarComponent from "@/components/TopbarComponent.vue";
 import SidebarComponent from "@/components/SidebarComponent.vue";
+import BacklogView from "../components/BacklogComponent.vue";
+import CreateTaskModal from "../components/CreateTaskModal.vue";
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -346,8 +368,9 @@ const loadingEpics = ref<boolean>(false);
 const activeTab = ref<"timeline" | "backlog">("timeline");
 const expandedEpics = ref<number[]>([]);
 const viewMode = ref<string>("weeks");
+const showCreateTask = ref<boolean>(false);
 const timelineRef = ref<HTMLElement | null>(null);
-
+const filterUserId = ref<number | null>(null);
 const activeView = ref<"dashboard" | "space">("space");
 const activeSpaceId = ref<number>(0);
 const showCreateEpic = ref<boolean>(false);
@@ -356,6 +379,7 @@ const showCreateSpace = ref<boolean>(false);
 const editSpaceData = ref<Space | null>(null);
 const deleteSpaceData = ref<Space | null>(null);
 const selectedSpace = ref<Space | null>(null);
+const backlogRef = ref();
 const deleteBoardData = ref<{
   spaceId: number;
   boardId: number;
@@ -404,9 +428,41 @@ const assigneeOptions = computed(() => {
   ];
 });
 
+const handleTaskCreated = (task: any) => {
+  backlogRef.value?.addTask(task);
+};
+
+const handleCreateClick = () => {
+  if (activeTab.value === "timeline") {
+    showCreateEpic.value = true;
+  } else if (activeTab.value === "backlog") {
+    showCreateTask.value = true;
+  }
+};
+
+const boardMembers = computed(() => {
+  const members = board.value?.member_emails ?? [];
+  const list = members.map((email: string, i: number) => ({
+    id: i + 100,
+    name: email.split("@")[0],
+    email,
+  }));
+  if (authStore.user) {
+    list.unshift({
+      id: authStore.user.id,
+      name: authStore.user.name,
+      email: authStore.user.email,
+    });
+  }
+  return list;
+});
 const userInitial = computed<string>(
   () => authStore.user?.name?.charAt(0).toUpperCase() || "U",
 );
+
+const toggleUserFilter = (userId: number) => {
+  filterUserId.value = filterUserId.value === userId ? null : userId;
+};
 
 const epicOptions = computed(() => {
   return ["All", ...epics.value.map((e) => e.judul)];

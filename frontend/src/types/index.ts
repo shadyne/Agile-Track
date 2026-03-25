@@ -77,19 +77,68 @@ export interface BoardForm {
   member_emails: string[];
 }
 
+export type EpicItemType = "story" | "task" | "qa_task" | "bug";
+export type EpicItemStatus =
+  | "to_do"
+  | "in_progress"
+  | "done_by_dev"
+  | "testing"
+  | "done_by_qa";
+export type EpicItemPriority = "highest" | "high" | "medium" | "low" | "lowest";
+
 export interface EpicItem {
   id: number;
-  epic_id: number;
+  epic_id: number | null;
+  parent_id: number | null;
   board_id: number;
+  sprint_id: number | null;
   kode: string;
   judul: string;
   deskripsi: string | null;
   label: string | null;
-  type: "story" | "task" | "bug";
-  status: "to_do" | "in_progress" | "done_by_dev" | "testing" | "done_by_qa";
-  priority: "highest" | "high" | "medium" | "low" | "lowest";
+  labels: string[];
+  type: EpicItemType;
+  status: EpicItemStatus;
+  priority: EpicItemPriority;
   start_date: string | null;
   end_date: string | null;
+  original_estimate: string | null;
+  assignee_id?: number | null;
+  assignee?: { id: number; name: string; email: string } | null;
+  user?: { id: number; name: string; email: string };
+  epic?: { id: number; kode: string; judul: string; labels: string[] } | null;
+  children?: EpicItem[];
+}
+
+export interface EpicItemForm {
+  judul: string;
+  type: EpicItemType;
+  priority: EpicItemPriority;
+  labels: string[];
+  start_date: string;
+  end_date: string;
+  deskripsi: string;
+  assignee_id: number | null;
+  epic_id: number | null;
+  parent_id: number | null;
+  sprint_id: number | null;
+  original_estimate: string;
+  attachments: File[];
+}
+
+export interface Sprint {
+  id: number;
+  board_id: number;
+  nama: string;
+  start_date: string | null;
+  end_date: string | null;
+  status: "planning" | "active" | "completed";
+  items: EpicItem[];
+}
+
+export interface BacklogData {
+  backlog: EpicItem[];
+  sprints: Sprint[];
 }
 
 export interface Epic {
@@ -102,9 +151,9 @@ export interface Epic {
   deskripsi?: string;
   original_estimate?: string;
   labels: string[];
-  type: "epic" | "story" | "task" | "bug";
-  status: "to_do" | "in_progress" | "done_by_dev" | "testing" | "done_by_qa";
-  priority: "highest" | "high" | "medium" | "low" | "lowest";
+  type: "epic" | "story" | "task" | "qa_task" | "bug";
+  status: EpicItemStatus;
+  priority: EpicItemPriority;
   start_date?: string;
   end_date?: string;
   items: EpicItem[];
@@ -116,7 +165,7 @@ export interface Epic {
 
 export interface EpicForm {
   judul: string;
-  priority: "highest" | "high" | "medium" | "low" | "lowest";
+  priority: EpicItemPriority;
   labels: string[];
   start_date: string;
   end_date: string;

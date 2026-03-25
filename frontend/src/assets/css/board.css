@@ -58,6 +58,11 @@
   flex-shrink: 0;
 }
 
+.avatar-filter-group {
+  display: flex;
+  gap: 4px;
+}
+
 .avatar-filter {
   width: 32px;
   height: 32px;
