@@ -273,11 +273,21 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Error Snackbar -->
+    <v-snackbar
+      v-model="showError"
+      color="error"
+      timeout="4000"
+      location="bottom right"
+    >
+      {{ errorMessage }}
+    </v-snackbar>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted } from "vue";
 import api from "../api/axios";
 import type {
   BacklogData,
@@ -314,13 +324,19 @@ const showStartSprint = ref(false);
 const selectedSprint = ref<Sprint | null>(null);
 const startingSprintLoading = ref(false);
 const startSprintForm = ref({ start_date: "", end_date: "" });
-const addTask = (task: any) => {
+
+// Error handling
+const showError = ref(false);
+const errorMessage = ref("");
+
+const addTask = (task: EpicItem) => {
   backlogItems.value.unshift(task);
 };
 
 defineExpose({
   addTask,
 });
+
 const allLabels = computed<string[]>(() => {
   const set = new Set<string>();
   [...backlogItems.value, ...sprints.value.flatMap((s) => s.items)].forEach(
@@ -415,6 +431,8 @@ const ambilData = async () => {
     });
   } catch (err) {
     console.error("Gagal ambil backlog:", err);
+    errorMessage.value = "Gagal memuat data backlog";
+    showError.value = true;
   } finally {
     loading.value = false;
   }
@@ -427,6 +445,7 @@ const openCreateTask = (sprintId: number | null = null) => {
 
 const onTaskCreated = (item: EpicItem) => {
   if (item.sprint_id) {
+    // Find in original sprints (not filtered), update there
     const sprint = sprints.value.find((s) => s.id === item.sprint_id);
     if (sprint) sprint.items.push(item);
   } else {
@@ -444,11 +463,13 @@ const openCreateSprint = async () => {
       },
     );
     const newSprint = res.data.data;
-    newSprint.items = [];
-    sprints.value.push(newSprint);
+    (newSprint as any).items = [];
+    sprints.value.push(newSprint as any);
     expandedSections.value.push(newSprint.id);
   } catch (err) {
     console.error("Gagal buat sprint:", err);
+    errorMessage.value = "Gagal membuat sprint";
+    showError.value = true;
   }
 };
 
@@ -460,9 +481,14 @@ const openStartSprint = (sprint: Sprint) => {
 
 const confirmStartSprint = async () => {
   if (!selectedSprint.value) return;
+  if (!startSprintForm.value.start_date || !startSprintForm.value.end_date) {
+    errorMessage.value = "Tanggal mulai dan selesai wajib diisi";
+    showError.value = true;
+    return;
+  }
   startingSprintLoading.value = true;
   try {
-    const res = await api.post<{ data: Sprint }>(
+    await api.post(
       `/boards/${props.boardId}/sprints/${selectedSprint.value.id}/start`,
       startSprintForm.value,
     );
@@ -471,8 +497,10 @@ const confirmStartSprint = async () => {
     );
     if (idx !== -1) sprints.value[idx].status = "active";
     showStartSprint.value = false;
-  } catch (err) {
+  } catch (err: any) {
     console.error("Gagal start sprint:", err);
+    errorMessage.value = err.response?.data?.message ?? "Gagal memulai sprint";
+    showError.value = true;
   } finally {
     startingSprintLoading.value = false;
   }
@@ -481,21 +509,35 @@ const confirmStartSprint = async () => {
 const completeSprint = async (sprint: Sprint) => {
   try {
     await api.post(`/boards/${props.boardId}/sprints/${sprint.id}/complete`);
+    // Items that are not done go back to backlog
     const undone = sprint.items.filter((i) => i.status !== "done_by_qa");
     backlogItems.value.push(...undone);
     sprints.value = sprints.value.filter((s) => s.id !== sprint.id);
-  } catch (err) {
+    expandedSections.value = expandedSections.value.filter(
+      (id) => id !== sprint.id,
+    );
+  } catch (err: any) {
     console.error("Gagal complete sprint:", err);
+    errorMessage.value =
+      err.response?.data?.message ?? "Gagal menyelesaikan sprint";
+    showError.value = true;
   }
 };
 
 const deleteSprint = async (sprint: Sprint) => {
   try {
     await api.delete(`/boards/${props.boardId}/sprints/${sprint.id}`);
+    // Move items back to backlog
     backlogItems.value.push(...sprint.items);
     sprints.value = sprints.value.filter((s) => s.id !== sprint.id);
-  } catch (err) {
+    expandedSections.value = expandedSections.value.filter(
+      (id) => id !== sprint.id,
+    );
+  } catch (err: any) {
     console.error("Gagal hapus sprint:", err);
+    errorMessage.value =
+      err.response?.data?.message ?? "Gagal menghapus sprint";
+    showError.value = true;
   }
 };
 
@@ -509,15 +551,22 @@ const renameSprint = async (sprint: Sprint) => {
   }
 };
 
-const updateItemStatus = async (item: EpicItem, status: EpicItemStatus) => {
+const updateItemStatus = async (item: EpicItem, status: string) => {
+  const oldStatus = item.status;
+  // Optimistic update
+  item.status = status as EpicItemStatus;
   try {
     await api.patch(
       `/boards/${props.boardId}/backlog/items/${item.id}/status`,
       { status },
     );
-    item.status = status;
-  } catch (err) {
+  } catch (err: any) {
+    // Revert on error
+    item.status = oldStatus;
     console.error("Gagal update status:", err);
+    const msg = err.response?.data?.message ?? "Status tidak valid";
+    errorMessage.value = msg;
+    showError.value = true;
   }
 };
 
@@ -531,6 +580,8 @@ onMounted(ambilData);
   flex-direction: column;
   overflow: hidden;
   background: white;
+  /* FIX: ensure flex child can shrink below content size */
+  min-height: 0;
 }
 
 .backlog-filters {
@@ -540,6 +591,7 @@ onMounted(ambilData);
   padding: 12px 28px;
   border-bottom: 1px solid rgba(130, 144, 164, 0.2);
   flex-wrap: wrap;
+  /* FIX: prevent filters from shrinking */
   flex-shrink: 0;
 }
 
@@ -578,8 +630,11 @@ onMounted(ambilData);
 
 .backlog-content {
   flex: 1;
+  /* FIX: this is the key fix - enable scrolling on the content area */
   overflow-y: auto;
   padding: 16px 28px 32px;
+  /* FIX: allow shrinking */
+  min-height: 0;
 }
 
 .backlog-section {
@@ -596,6 +651,8 @@ onMounted(ambilData);
   background: #f9fafb;
   border-bottom: 1px solid rgba(130, 144, 164, 0.15);
   gap: 8px;
+  /* FIX: prevent header from wrapping awkwardly */
+  flex-wrap: nowrap;
 }
 
 .section-header-left {
@@ -605,6 +662,7 @@ onMounted(ambilData);
   cursor: pointer;
   flex: 1;
   overflow: hidden;
+  min-width: 0;
 }
 
 .section-header-right {

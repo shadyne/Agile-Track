@@ -7,6 +7,7 @@ use App\Models\Epic;
 use App\Models\EpicItem;
 use App\Models\EpicAttachment;
 use App\Models\Sprint;
+use App\Models\WorkflowStatus;
 use Illuminate\Http\Request;
 
 class BacklogController extends Controller
@@ -62,9 +63,12 @@ class BacklogController extends Controller
             'parent_id'         => 'nullable|exists:epic_items,id',
             'sprint_id'         => 'nullable|exists:sprints,id',
             'original_estimate' => 'nullable|string|max:20',
+            'status'            => 'nullable|string|max:50',
             'attachments'       => 'nullable|array',
             'attachments.*'     => 'file|mimes:jpg,jpeg,png,gif,mp4,mov,avi|max:51200',
         ]);
+
+        $statusValue = $this->resolveStatus($request->status, 'to_do');
 
         $spaceKey = $board->space->key;
 
@@ -79,13 +83,13 @@ class BacklogController extends Controller
             'board_id'          => $boardId,
             'user_id'           => $request->user()->id,
             'assignee_id'       => $request->assignee_id,
-            'sprint_id'         => $request->sprint_id, 
+            'sprint_id'         => $request->sprint_id,
             'kode'              => $kode,
             'judul'             => $request->judul,
             'deskripsi'         => $request->deskripsi,
             'labels'            => $request->labels ?? [],
             'type'              => $request->type,
-            'status'            => 'to_do',
+            'status'            => $statusValue,
             'priority'          => $request->priority,
             'start_date'        => $request->start_date,
             'end_date'          => $request->end_date,
@@ -114,8 +118,21 @@ class BacklogController extends Controller
     public function updateStatus(Request $request, $boardId, $itemId)
     {
         $item = EpicItem::where('board_id', $boardId)->findOrFail($itemId);
-        $request->validate(['status' => 'required|in:to_do,in_progress,done_by_dev,testing,done_by_qa']);
-        $item->update(['status' => $request->status]);
+
+        $request->validate([
+            'status' => 'required|string|max:50',
+        ]);
+
+        $statusValue = $this->resolveStatus($request->status);
+
+        if ($statusValue === null) {
+            return response()->json([
+                'message' => 'Status tidak valid: ' . $request->status,
+            ], 422);
+        }
+
+        $item->update(['status' => $statusValue]);
+
         return response()->json(['message' => 'Status updated', 'data' => $item]);
     }
 
@@ -133,5 +150,29 @@ class BacklogController extends Controller
             'message' => 'Item dipindah',
             'data'    => $item->load(['epic', 'assignee']),
         ]);
+    }
+
+    private function resolveStatus(?string $status, ?string $default = null): ?string
+    {
+        if (empty($status)) {
+            return $default;
+        }
+
+        $hardcoded = ['to_do', 'in_progress', 'done_by_dev', 'testing', 'done_by_qa'];
+        if (in_array($status, $hardcoded)) {
+            return $status;
+        }
+
+        $workflowStatus = WorkflowStatus::where('value', $status)->first();
+        if ($workflowStatus) {
+            $categoryMap = [
+                'To Do'       => 'to_do',
+                'In Progress' => 'in_progress',
+                'Done'        => 'done_by_qa',
+            ];
+            return $categoryMap[$workflowStatus->category] ?? 'to_do';
+        }
+
+        return $default;
     }
 }

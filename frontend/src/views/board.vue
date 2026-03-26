@@ -1,294 +1,277 @@
 <template>
-  <div class="dashboard-layout">
-    <div class="main-area">
-      <div class="board-title-area">
-        <h1 class="board-title">{{ board?.nama?.toUpperCase() }}</h1>
-      </div>
+  <div class="board-main">
+    <div class="board-title-area">
+      <h1 class="board-title">{{ board?.nama?.toUpperCase() }}</h1>
+    </div>
 
-      <div class="board-tabs">
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'timeline' }"
-          @click="activeTab = 'timeline'"
-        >
-          Timeline
-        </button>
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'backlog' }"
-          @click="activeTab = 'backlog'"
-        >
-          Backlog
-        </button>
-      </div>
+    <div class="board-tabs">
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'timeline' }"
+        @click="activeTab = 'timeline'"
+      >
+        Timeline
+      </button>
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'backlog' }"
+        @click="activeTab = 'backlog'"
+      >
+        Backlog
+      </button>
+    </div>
 
-      <template v-if="activeTab === 'timeline'">
-        <div class="timeline-filters">
-          <div class="avatar-filter-group">
-            <div
-              v-for="member in boardMembers"
-              :key="member.id"
-              class="avatar-filter"
-              :class="{ active: filterUserId === member.id }"
-              :title="member.name"
-              @click="toggleUserFilter(member.id)"
-            >
-              <span style="color: #020f40; font-size: 11px; font-weight: 700">
-                {{ member.name.charAt(0).toUpperCase() }}
-              </span>
-            </div>
+    <template v-if="activeTab === 'timeline'">
+      <div class="timeline-filters">
+        <div class="avatar-filter-group">
+          <div
+            v-for="member in boardMembers"
+            :key="member.id"
+            class="avatar-filter"
+            :class="{ active: filterUserId === member.id }"
+            :title="member.name"
+            @click="toggleUserFilter(member.id)"
+          >
+            <span style="color: #020f40; font-size: 11px; font-weight: 700">
+              {{ member.name.charAt(0).toUpperCase() }}
+            </span>
           </div>
-          <div class="filter-divider" />
-
-          <v-select
-            v-model="filterEpic"
-            label="Epic"
-            :items="epicOptions"
-            variant="outlined"
-            density="compact"
-            hide-details
-            style="max-width: 120px"
-          />
-          <v-select
-            v-model="filterType"
-            label="Type"
-            :items="['All', 'Story', 'Task', 'Bug']"
-            variant="outlined"
-            density="compact"
-            hide-details
-            style="max-width: 120px"
-          />
-          <v-select
-            v-model="filterLabel"
-            label="Label"
-            :items="allLabels"
-            variant="outlined"
-            density="compact"
-            hide-details
-            style="max-width: 130px"
-          />
-          <v-select
-            v-model="filterStatus"
-            label="Status"
-            :items="['All', ...workflowStore.statuses.map((s) => s.label)]"
-            variant="outlined"
-            density="compact"
-            hide-details
-            style="max-width: 180px"
-          />
-          <v-select
-            v-model="filterUser"
-            label="Assignee"
-            :items="assigneeOptions"
-            item-title="title"
-            item-value="value"
-            variant="outlined"
-            density="compact"
-            hide-details
-            style="max-width: 150px"
-          />
         </div>
+        <div class="filter-divider" />
 
-        <div v-if="loadingEpics" class="flex items-center justify-center h-64">
-          <v-progress-circular indeterminate color="primary" />
-        </div>
+        <v-select
+          v-model="filterEpic"
+          label="Epic"
+          :items="epicOptions"
+          variant="outlined"
+          density="compact"
+          hide-details
+          style="max-width: 120px"
+        />
+        <v-select
+          v-model="filterType"
+          label="Type"
+          :items="['All', 'Story', 'Task', 'Bug']"
+          variant="outlined"
+          density="compact"
+          hide-details
+          style="max-width: 120px"
+        />
+        <v-select
+          v-model="filterLabel"
+          label="Label"
+          :items="allLabels"
+          variant="outlined"
+          density="compact"
+          hide-details
+          style="max-width: 130px"
+        />
+        <v-select
+          v-model="filterStatus"
+          label="Status"
+          :items="['All', ...workflowStore.statuses.map((s) => s.label)]"
+          variant="outlined"
+          density="compact"
+          hide-details
+          style="max-width: 180px"
+        />
+        <v-select
+          v-model="filterUser"
+          label="Assignee"
+          :items="assigneeOptions"
+          item-title="title"
+          item-value="value"
+          variant="outlined"
+          density="compact"
+          hide-details
+          style="max-width: 150px"
+        />
+      </div>
 
-        <div v-else class="timeline-container" ref="timelineRef">
-          <div class="timeline-table">
-            <div class="timeline-header">
-              <div class="work-col">Work</div>
-              <div class="date-cols">
-                <div
-                  v-for="month in timelineMonths"
-                  :key="month.key"
-                  class="month-group"
-                >
-                  <div class="month-label">{{ month.label }}</div>
-                  <div class="day-labels">
-                    <div
-                      v-for="day in month.days"
-                      :key="day.date"
-                      class="day-cell"
-                      :class="{ today: day.isToday }"
-                    >
-                      {{ day.num }}
-                    </div>
+      <div v-if="loadingEpics" class="flex items-center justify-center h-64">
+        <v-progress-circular indeterminate color="primary" />
+      </div>
+
+      <div v-else class="timeline-container" ref="timelineRef">
+        <div class="timeline-table">
+          <div class="timeline-header">
+            <div class="work-col">Work</div>
+            <div class="date-cols">
+              <div
+                v-for="month in timelineMonths"
+                :key="month.key"
+                class="month-group"
+              >
+                <div class="month-label">{{ month.label }}</div>
+                <div class="day-labels">
+                  <div
+                    v-for="day in month.days"
+                    :key="day.date"
+                    class="day-cell"
+                    :class="{ today: day.isToday }"
+                  >
+                    {{ day.num }}
                   </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div class="timeline-section-label">
-              <div class="section-name">Sprints</div>
-              <div class="section-bar-area"></div>
-            </div>
+          <div class="timeline-section-label">
+            <div class="section-name">Sprints</div>
+            <div class="section-bar-area"></div>
+          </div>
 
-            <div class="timeline-section-label">
-              <div class="section-name">Releases</div>
-              <div class="section-bar-area"></div>
-            </div>
+          <div class="timeline-section-label">
+            <div class="section-name">Releases</div>
+            <div class="section-bar-area"></div>
+          </div>
 
-            <template v-for="epic in filteredEpics" :key="epic.id">
-              <div class="epic-row">
-                <div class="epic-row-left">
-                  <input type="checkbox" class="row-checkbox" />
-                  <span class="expand-btn" @click="toggleExpandEpic(epic.id)">
-                    <v-icon
-                      :icon="
-                        expandedEpics.includes(epic.id)
-                          ? 'mdi-chevron-down'
-                          : 'mdi-chevron-right'
-                      "
-                      size="14"
-                      :color="epic.items?.length ? '#020F40' : '#ccc'"
-                    />
-                  </span>
+          <template v-for="epic in filteredEpics" :key="epic.id">
+            <div class="epic-row">
+              <div class="epic-row-left">
+                <input type="checkbox" class="row-checkbox" />
+                <span class="expand-btn" @click="toggleExpandEpic(epic.id)">
                   <v-icon
-                    class="epic-type-icon"
-                    :icon="getTypeIcon(epic.type)"
+                    :icon="
+                      expandedEpics.includes(epic.id)
+                        ? 'mdi-chevron-down'
+                        : 'mdi-chevron-right'
+                    "
                     size="14"
-                    :color="getTypeColor(epic.type)"
+                    :color="epic.items?.length ? '#020F40' : '#ccc'"
+                  />
+                </span>
+                <v-icon
+                  class="epic-type-icon"
+                  :icon="getTypeIcon(epic.type)"
+                  size="14"
+                  :color="getTypeColor(epic.type)"
+                />
+                <RouterLink
+                  :to="`/board/${boardId}/epic/${epic.id}`"
+                  class="epic-key"
+                >
+                  {{ epic.kode }}
+                </RouterLink>
+                <template v-if="epic.labels?.length">
+                  <span
+                    v-for="lbl in epic.labels"
+                    :key="lbl"
+                    class="epic-label-tag"
+                    :style="{
+                      color: getLabelColor(lbl),
+                      borderColor: getLabelColor(lbl),
+                    }"
+                  >
+                    {{ lbl }}
+                  </span>
+                </template>
+
+                <span
+                  class="status-badge"
+                  :style="workflowStore.getStatusStyle(epic.status)"
+                >
+                  {{ workflowStore.getStatusLabel(epic.status) }}
+                </span>
+
+                <span
+                  class="priority-dot"
+                  :style="{
+                    backgroundColor: getPriorityColor(epic.priority),
+                  }"
+                  :title="epic.priority"
+                />
+              </div>
+
+              <div class="epic-bar-area">
+                <div
+                  v-if="epic.start_date && epic.end_date"
+                  class="gantt-bar"
+                  :style="
+                    getBarStyle(epic.start_date, epic.end_date, epic.labels)
+                  "
+                  :title="`${epic.start_date} → ${epic.end_date}`"
+                />
+                <div
+                  v-else-if="isOutOfRange(epic)"
+                  class="gantt-bar out-of-range"
+                >
+                  ←
+                </div>
+              </div>
+            </div>
+
+            <template v-if="expandedEpics.includes(epic.id)">
+              <div v-for="item in epic.items" :key="item.id" class="child-row">
+                <div class="child-row-left">
+                  <input type="checkbox" class="row-checkbox" />
+                  <span class="child-indent" />
+                  <v-icon
+                    :icon="getTypeIcon(item.type)"
+                    size="13"
+                    :color="getTypeColor(item.type)"
                   />
                   <RouterLink
-                    :to="`/board/${boardId}/epic/${epic.id}`"
+                    :to="`/board/${boardId}/item/${item.id}`"
                     class="epic-key"
                   >
-                    {{ epic.kode }}
+                    {{ item.kode }}
                   </RouterLink>
-                  <template v-if="epic.labels?.length">
-                    <span
-                      v-for="lbl in epic.labels"
-                      :key="lbl"
-                      class="epic-label-tag"
-                      :style="{
-                        color: getLabelColor(lbl),
-                        borderColor: getLabelColor(lbl),
-                      }"
-                    >
-                      {{ lbl }}
-                    </span>
-                  </template>
-
+                  <span class="epic-judul">{{ item.judul }}</span>
                   <span
                     class="status-badge"
-                    :style="workflowStore.getStatusStyle(epic.status)"
+                    :style="workflowStore.getStatusStyle(item.status)"
                   >
-                    {{ workflowStore.getStatusLabel(epic.status) }}
+                    {{ workflowStore.getStatusLabel(item.status) }}
                   </span>
-
                   <span
                     class="priority-dot"
                     :style="{
-                      backgroundColor: getPriorityColor(epic.priority),
+                      backgroundColor: getPriorityColor(item.priority),
                     }"
-                    :title="epic.priority"
+                    :title="item.priority"
                   />
                 </div>
-
                 <div class="epic-bar-area">
                   <div
-                    v-if="epic.start_date && epic.end_date"
+                    v-if="item.start_date && item.end_date"
                     class="gantt-bar"
                     :style="
-                      getBarStyle(epic.start_date, epic.end_date, epic.labels)
+                      getBarStyle(item.start_date, item.end_date, epic.labels)
                     "
-                    :title="`${epic.start_date} → ${epic.end_date}`"
                   />
-                  <div
-                    v-else-if="isOutOfRange(epic)"
-                    class="gantt-bar out-of-range"
-                  >
-                    ←
-                  </div>
                 </div>
               </div>
-
-              <template v-if="expandedEpics.includes(epic.id)">
-                <div
-                  v-for="item in epic.items"
-                  :key="item.id"
-                  class="child-row"
-                >
-                  <div class="child-row-left">
-                    <input type="checkbox" class="row-checkbox" />
-                    <span class="child-indent" />
-                    <v-icon
-                      :icon="getTypeIcon(item.type)"
-                      size="13"
-                      :color="getTypeColor(item.type)"
-                    />
-                    <RouterLink
-                      :to="`/board/${boardId}/epic/${epic.id}`"
-                      class="epic-key"
-                    >
-                      {{ item.kode }}
-                    </RouterLink>
-                    <template v-if="epic.labels?.length">
-                      <span
-                        v-for="lbl in epic.labels"
-                        :key="lbl"
-                        class="epic-label-tag"
-                        :style="{
-                          color: getLabelColor(lbl),
-                          borderColor: getLabelColor(lbl),
-                        }"
-                        >{{ lbl }}</span
-                      >
-                    </template>
-                    <span
-                      class="status-badge"
-                      :style="workflowStore.getStatusStyle(item.status)"
-                    >
-                      {{ workflowStore.getStatusLabel(item.status) }}
-                    </span>
-                    <span
-                      class="priority-dot"
-                      :style="{
-                        backgroundColor: getPriorityColor(item.priority),
-                      }"
-                      :title="item.priority"
-                    />
-                  </div>
-                  <div class="epic-bar-area">
-                    <div
-                      v-if="item.start_date && item.end_date"
-                      class="gantt-bar"
-                      :style="
-                        getBarStyle(epic.start_date, epic.end_date, epic.labels)
-                      "
-                    />
-                  </div>
-                </div>
-              </template>
             </template>
-          </div>
+          </template>
         </div>
+      </div>
 
-        <div class="view-controls">
-          <button
-            v-for="v in viewModes"
-            :key="v.value"
-            class="view-btn"
-            :class="{ active: viewMode === v.value }"
-            @click="viewMode = v.value"
-          >
-            {{ v.label }}
-          </button>
-          <v-btn icon="mdi-information-outline" variant="text" size="small" />
-          <v-btn icon="mdi-chevron-right" variant="text" size="small" />
-        </div>
-      </template>
+      <div class="view-controls">
+        <button
+          v-for="v in viewModes"
+          :key="v.value"
+          class="view-btn"
+          :class="{ active: viewMode === v.value }"
+          @click="viewMode = v.value"
+        >
+          {{ v.label }}
+        </button>
+        <v-btn icon="mdi-information-outline" variant="text" size="small" />
+        <v-btn icon="mdi-chevron-right" variant="text" size="small" />
+      </div>
+    </template>
 
-      <!-- BACKLOG TAB -->
-      <template v-else-if="activeTab === 'backlog'">
-        <BacklogView
-          ref="backlogRef"
-          :board-id="boardId"
-          :epics="epics"
-          :board-members="boardMembers"
-        />
-      </template>
-    </div>
+    <!-- BACKLOG TAB -->
+    <template v-else-if="activeTab === 'backlog'">
+      <BacklogView
+        ref="backlogRef"
+        :board-id="boardId"
+        :epics="epics"
+        :board-members="boardMembers"
+      />
+    </template>
   </div>
 </template>
 
@@ -298,7 +281,7 @@ import { RouterLink, useRoute } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useWorkflowStore } from "../stores/workflow";
 import api from "../api/axios";
-import type { Epic, Board, Space } from "../types";
+import type { Epic, Board } from "../types";
 import "../assets/css/dashboard.css";
 import "../assets/css/board.css";
 import BacklogView from "../components/BacklogComponent.vue";
@@ -316,7 +299,6 @@ const expandedEpics = ref<number[]>([]);
 const viewMode = ref<string>("weeks");
 const timelineRef = ref<HTMLElement | null>(null);
 const filterUserId = ref<number | null>(null);
-const showCreateTask = ref<boolean>(false);
 const backlogRef = ref();
 
 const filterEpic = ref("All");
@@ -325,9 +307,20 @@ const filterLabel = ref("All");
 const filterStatus = ref("All");
 const filterUser = ref<number | "All">("All");
 
+onMounted(async () => {
+  const tabParam = route.query.tab as string;
+  if (tabParam === "backlog") {
+    activeTab.value = "backlog";
+  }
+  await workflowStore.fetchStatuses();
+  await ambilBoard();
+  await ambilEpics();
+});
+
 watch(
   () => route.params.boardId,
   async () => {
+    expandedEpics.value = [];
     await ambilBoard();
     await ambilEpics();
   },
@@ -376,9 +369,7 @@ const toggleUserFilter = (userId: number) => {
 const epicOptions = computed(() => ["All", ...epics.value.map((e) => e.judul)]);
 
 const allLabels = computed<string[]>(() => {
-  const labels = epics.value
-    .map((e) => e.label)
-    .filter((l): l is string => !!l);
+  const labels = epics.value.flatMap((e) => e.labels ?? []);
   return ["All", ...new Set(labels)];
 });
 
@@ -401,11 +392,9 @@ const filteredEpics = computed<Epic[]>(() => {
       const statusLabel = workflowStore.getStatusLabel(epic.status);
       if (statusLabel !== filterStatus.value) return false;
     }
-    if (
-      filterLabel.value !== "All" &&
-      epic.label?.toLowerCase() !== filterLabel.value.toLowerCase()
-    )
-      return false;
+    if (filterLabel.value !== "All") {
+      if (!epic.labels?.includes(filterLabel.value)) return false;
+    }
     if (filterUser.value !== "All" && epic.assignee_id !== filterUser.value)
       return false;
     if (
@@ -528,6 +517,7 @@ const getTypeIcon = (type: string): string => {
     story: "mdi-bookmark-outline",
     task: "mdi-check-circle-outline",
     bug: "mdi-bug-outline",
+    qa_task: "mdi-clipboard-check-outline",
   };
   return icons[type] || "mdi-circle-outline";
 };
@@ -538,6 +528,7 @@ const getTypeColor = (type: string): string => {
     story: "#059669",
     task: "#1D4ED8",
     bug: "#DC2626",
+    qa_task: "#0891B2",
   };
   return colors[type] || "#8290A4";
 };
@@ -573,10 +564,14 @@ const ambilEpics = async (): Promise<void> => {
     loadingEpics.value = false;
   }
 };
-
-onMounted(async () => {
-  await workflowStore.fetchStatuses();
-  ambilBoard();
-  ambilEpics();
-});
 </script>
+
+<style scoped>
+.board-main {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: white;
+}
+</style>

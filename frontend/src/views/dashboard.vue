@@ -14,7 +14,7 @@
     />
 
     <div class="main-area">
-      <TopbarComponent @openWorkflowSettings="openWorkflowSettings">
+      <TopbarComponent>
         <template #actions>
           <v-btn
             v-if="showCreateButton"
@@ -28,9 +28,11 @@
         </template>
       </TopbarComponent>
 
-      <RouterView @updateTab="currentTab = $event" />
+      <div v-if="isOnBoardRoute" class="board-route-area">
+        <RouterView @updateTab="currentTab = $event" />
+      </div>
 
-      <main class="content-area">
+      <main v-else class="content-area">
         <div v-if="loading" class="flex items-center justify-center h-64">
           <v-progress-circular indeterminate color="primary" />
         </div>
@@ -128,16 +130,9 @@
       :available-labels="availableLabels"
       @created="handleTaskCreated"
     />
-
-    <WorkflowSettings
-      v-if="showWorkflowSettings"
-      :workflow-name="'DEV Workflow - With QA'"
-      :used-in-spaces="1"
-      @close="showWorkflowSettings = false"
-      @saved="handleWorkflowSaved"
-    />
   </div>
 </template>
+
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { Bar, Pie } from "vue-chartjs";
@@ -173,8 +168,7 @@ import CreateTaskModal from "../components/CreateTaskModal.vue";
 import CreateEpicModal from "../components/CreateEpicModal.vue";
 
 import { useWorkflowStore } from "../stores/workflow";
-import type { WorkflowStatus } from "../stores/workflow";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 
 ChartJS.register(
   CategoryScale,
@@ -186,6 +180,7 @@ ChartJS.register(
 );
 
 const route = useRoute();
+const router = useRouter();
 const authStore = useAuthStore();
 const spaceStore = useSpaceStore();
 const workflowStore = useWorkflowStore();
@@ -200,8 +195,6 @@ const showCreateBoard = ref(false);
 const showDeleteBoard = ref(false);
 const showCreateEpic = ref(false);
 const showCreateTask = ref(false);
-const showWorkflowSettings = ref(false);
-const showWorkflow = ref(false);
 const currentTab = ref<"timeline" | "backlog" | null>(null);
 const editSpaceData = ref<Space | null>(null);
 const deleteSpaceData = ref<Space | null>(null);
@@ -215,18 +208,20 @@ const deleteBoardData = ref<{
 const loading = ref(false);
 const dashboardData = ref<DashboardData | null>(null);
 
-const showCreateButton = computed(() => {
-  const isBoardPage = route.path.startsWith("/board");
-  return isBoardPage && currentTab.value !== null;
+const isOnBoardRoute = computed(() => {
+  return route.path.startsWith("/board") || route.path === "/workflow-settings";
 });
 
-const openWorkflowSettings = () => {
-  showWorkflowSettings.value = true;
-};
+const showCreateButton = computed(() => {
+  return (
+    isOnBoardRoute.value &&
+    route.path.startsWith("/board") &&
+    !route.path.includes("/epic/") &&
+    !route.path.includes("/item/") &&
+    currentTab.value !== null
+  );
+});
 
-const handleWorkflowSaved = (statuses) => {
-  console.log("Workflow saved:", statuses);
-};
 const boardMembers = computed(() => {
   if (!activeSpaceId.value) return [];
   const space = spaceStore.spaces.find((s) => s.id === activeSpaceId.value);
@@ -294,10 +289,6 @@ const barOptions = {
       ticks: { color: "#65A9EC", font: { size: 11 } },
     },
   },
-};
-
-const onWorkflowSaved = (statuses: WorkflowStatus[]) => {
-  workflowStore.updateStatuses(statuses);
 };
 
 const pieChartData = computed(() => {
@@ -385,19 +376,16 @@ const onSpaceDeleted = (): void => {
 };
 const onBoardCreated = (): void => {
   if (selectedSpaceForBoard.value) {
-    const spaceId = selectedSpaceForBoard.value.id;
-    spaceStore.ambilBoards(spaceId);
+    spaceStore.ambilBoards(selectedSpaceForBoard.value.id);
   }
 };
 const onBoardDeleted = (): void => {
   activeBoardId.value = 0;
+  router.push("/");
 };
 
 const handleCreateClick = (): void => {
-  if (activeBoardId.value === 0) {
-    console.warn("No active board selected");
-    return;
-  }
+  if (activeBoardId.value === 0) return;
   if (currentTab.value === "timeline") {
     showCreateEpic.value = true;
   } else if (currentTab.value === "backlog") {
@@ -413,11 +401,28 @@ const handleTaskCreated = (task: any): void => {
   console.log("Task created:", task.kode);
 };
 
+watch(
+  () => route.params.boardId,
+  (id) => {
+    if (id) activeBoardId.value = Number(id);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => route.path,
+  (path) => {
+    if (!path.startsWith("/board")) {
+      currentTab.value = null;
+    }
+  },
+);
+
 const ambilData = async (): Promise<void> => {
   loading.value = true;
   try {
     let res;
-    if (activeView.value === "dashboard") {
+    if (activeView.value === "dashboard" || !activeSpaceId.value) {
       res = await api.get("/dashboard");
     } else {
       res = await api.get(`/spaces/${activeSpaceId.value}/dashboard`);
@@ -430,17 +435,9 @@ const ambilData = async (): Promise<void> => {
   }
 };
 
-watch(
-  () => route.path,
-  (path) => {
-    if (!path.startsWith("/board")) {
-      currentTab.value = null;
-    }
-  },
-);
-
 onMounted(async () => {
   await spaceStore.ambilSpaces();
+  await workflowStore.fetchStatuses();
   activeView.value = "dashboard";
   if (spaceStore.spaces.length > 0) {
     activeSpaceId.value = spaceStore.spaces[0]?.id ?? 0;
@@ -448,3 +445,13 @@ onMounted(async () => {
   }
 });
 </script>
+
+<style scoped>
+.board-route-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+</style>
