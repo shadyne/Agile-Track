@@ -13,30 +13,29 @@ import ItemDetailView from "../views/taskDetail.vue";
 
 const routes: RouteRecordRaw[] = [
   {
+    path: "/login",
+    name: "login",
+    component: LoginView,
+    meta: { guest: true },
+  },
+  {
+    path: "/register",
+    name: "register",
+    component: RegisterView,
+    meta: { guest: true },
+  },
+  {
+    path: "/register/success",
+    name: "register-success",
+    component: RegisterSuccessView,
+    meta: { guest: true },
+  },
+  {
     path: "/",
     name: "dashboard",
     component: DashboardView,
     meta: { requiresAuth: true },
     children: [
-      {
-        path: "/login",
-        name: "login",
-        component: LoginView,
-        meta: { guest: true },
-      },
-      {
-        path: "/register",
-        name: "register",
-        component: RegisterView,
-        meta: { guest: true },
-      },
-      {
-        path: "/register/success",
-        name: "register-success",
-        component: RegisterSuccessView,
-        meta: { guest: true },
-      },
-
       {
         path: "/board/:boardId",
         name: "board",

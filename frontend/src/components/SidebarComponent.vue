@@ -51,7 +51,7 @@
             :class="{
               active: activeView === 'space' && activeSpaceId === space.id,
             }"
-            @click="toggleSpace(space.id)"
+            @click="selectSpace(space)"
           >
             <div class="space-item-left">
               <v-icon
@@ -62,7 +62,7 @@
                 "
                 size="14"
                 color="#020f40"
-                @click.stop="toggleSpace(space.id)"
+                @click.stop="toggleExpandSpace(space.id)"
               />
               <span class="space-name">{{ space.nama }}</span>
             </div>
@@ -124,7 +124,7 @@
               :key="board.id"
               class="board-item"
               :class="{ active: activeBoardId === board.id }"
-              @click="pilihBoard(board)"
+              @click="pilihBoard(space, board)"
             >
               <div class="board-item-left">
                 <span class="board-name">{{ board.nama }}</span>
@@ -186,7 +186,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import { useSpaceStore } from "../stores/space";
 import type { Space, Board } from "../types";
@@ -216,11 +216,21 @@ const spaceStore = useSpaceStore();
 const spacesExpanded = ref<boolean>(true);
 const expandedSpaces = ref<number[]>([]);
 
-const toggleSpace = (spaceId: number): void => {
-  emit("update:activeView", "space");
-  emit("update:activeSpaceId", spaceId);
-  emit("spaceSelected", spaceId);
+onMounted(() => {
+  if (props.activeBoardId) {
+    for (const space of spaceStore.spaces) {
+      const boards = spaceStore.getBoardsBySpace(space.id);
+      if (boards.some((b) => b.id === props.activeBoardId)) {
+        if (!expandedSpaces.value.includes(space.id)) {
+          expandedSpaces.value.push(space.id);
+        }
+        break;
+      }
+    }
+  }
+});
 
+const toggleExpandSpace = (spaceId: number): void => {
   const idx = expandedSpaces.value.indexOf(spaceId);
   if (idx === -1) {
     expandedSpaces.value.push(spaceId);
@@ -229,9 +239,17 @@ const toggleSpace = (spaceId: number): void => {
     expandedSpaces.value.splice(idx, 1);
   }
 };
-const pilihBoard = (board: Board): void => {
+
+const selectSpace = (space: Space): void => {
   emit("update:activeView", "space");
-  emit("update:activeSpaceId", board.space_id);
+  emit("update:activeSpaceId", space.id);
+  emit("spaceSelected", space.id);
+  toggleExpandSpace(space.id);
+};
+
+const pilihBoard = (space: Space, board: Board): void => {
+  emit("update:activeView", "space");
+  emit("update:activeSpaceId", space.id);
   emit("update:activeBoardId", board.id);
   router.push(`/board/${board.id}`);
 };

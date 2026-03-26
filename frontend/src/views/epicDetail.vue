@@ -1,31 +1,6 @@
 <template>
   <div class="epic-detail-layout">
-    <SidebarComponent
-      v-model:active-view="activeView"
-      v-model:active-space-id="activeSpaceId"
-      :active-board-id="boardId"
-      @open-recent="() => {}"
-      @open-create-space="() => {}"
-      @open-edit-space="() => {}"
-      @open-delete-space="() => {}"
-      @open-create-board="() => {}"
-      @open-delete-board="() => {}"
-      @space-selected="() => {}"
-    />
-
     <div class="epic-detail-main">
-      <TopbarComponent>
-        <template #actions>
-          <v-btn
-            color="second-btn"
-            prepend-icon="mdi-plus"
-            style="color: white"
-          >
-            Create
-          </v-btn>
-        </template>
-      </TopbarComponent>
-
       <div
         style="
           padding: 16px 28px 0;
@@ -34,7 +9,7 @@
         "
       >
         <h1 class="board-title">{{ boardNama }}</h1>
-        <div class="board-tabs" style="padding: 0; margin-top: 8px">
+        <div class="board-tabs" style="padding: 0">
           <button class="tab-btn" @click="router.push(`/board/${boardId}`)">
             Timeline
           </button>

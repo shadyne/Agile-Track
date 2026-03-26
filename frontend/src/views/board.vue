@@ -312,7 +312,7 @@ import BacklogView from "../components/BacklogComponent.vue";
 
 const route = useRoute();
 const authStore = useAuthStore();
-const boardId = Number(route.params.boardId);
+const boardId = computed(() => Number(route.params.boardId));
 
 const board = ref<Board | null>(null);
 const epics = ref<Epic[]>([]);
@@ -343,14 +343,25 @@ const filterType = ref("All");
 const filterLabel = ref("All");
 const filterStatus = ref("All");
 
+watch(
+  () => route.params.boardId,
+  async () => {
+    await ambilBoard();
+    await ambilEpics();
+  },
+);
+
 const emit = defineEmits<{
   (e: "updateTab", val: "timeline" | "backlog"): void;
 }>();
 
-watch(activeTab, (val) => {
-  emit("updateTab", val);
-});
-
+watch(
+  activeTab,
+  (val) => {
+    emit("updateTab", val);
+  },
+  { immediate: true },
+);
 const viewModes = [
   { label: "Today", value: "today" },
   { label: "Weeks", value: "weeks" },
@@ -656,7 +667,7 @@ const onEpicCreated = (epic: Epic): void => {
 
 const ambilBoard = async (): Promise<void> => {
   try {
-    const res = await api.get<Board>(`/boards/${boardId}`);
+    const res = await api.get<Board>(`/boards/${boardId.value}`);
     board.value = res.data;
   } catch (err) {
     console.error("Gagal ambil board:", err);
@@ -666,7 +677,7 @@ const ambilBoard = async (): Promise<void> => {
 const ambilEpics = async (): Promise<void> => {
   loadingEpics.value = true;
   try {
-    const res = await api.get<Epic[]>(`/boards/${boardId}/epics`);
+    const res = await api.get<Epic[]>(`/boards/${boardId.value}/epics`);
     epics.value = res.data;
     console.log("EPICS:", res.data);
   } catch (err) {

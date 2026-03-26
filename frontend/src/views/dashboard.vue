@@ -3,7 +3,7 @@
     <SidebarComponent
       v-model:active-view="activeView"
       v-model:active-space-id="activeSpaceId"
-      :active-board-id="activeBoardId"
+      v-model:active-board-id="activeBoardId"
       @open-recent="showRecent = true"
       @open-create-space="openCreateSpace"
       @open-edit-space="openEditSpace"
@@ -14,20 +14,26 @@
     />
 
     <div class="main-area">
-      <TopbarComponent>
+      <TopbarComponent
+        @open-space-settings="showSpaceSettings = true"
+        @open-workflow-settings="showWorkflowSettings = true"
+        @open-board-settings="showBoardSettings = true"
+      >
         <template #actions>
           <v-btn
-            v-if="activeTab === 'timeline' || activeTab === 'backlog'"
+            v-if="showCreateButton"
             color="second-btn"
             prepend-icon="mdi-plus"
-            @click="handleCreateClick"
             style="color: white"
+            @click="handleCreateClick"
           >
             Create
           </v-btn>
         </template>
       </TopbarComponent>
-      <router-view @updateTab="activeTab = $event" />
+
+      <RouterView @updateTab="currentTab = $event" />
+
       <main class="content-area">
         <div v-if="loading" class="flex items-center justify-center h-64">
           <v-progress-circular indeterminate color="primary" />
@@ -36,9 +42,9 @@
         <template v-else>
           <div class="summary-grid">
             <div
-              class="summary-card"
               v-for="card in summaryCards"
               :key="card.key"
+              class="summary-card"
             >
               <div class="summary-icon">
                 <v-icon :icon="card.icon" size="24" color="#020F40" />
@@ -79,58 +85,68 @@
                 />
               </div>
             </div>
-            <RecentActivityModal
-              v-model="showRecent"
-              :space-id="activeSpaceId"
-            />
-            <CreateSpaceModal
-              v-model="showCreateSpace"
-              :edit-data="editSpaceData"
-              @created="onSpaceSaved"
-            />
-            <DeleteSpaceModal
-              v-if="deleteSpaceData"
-              v-model="showDeleteSpace"
-              :space-id="deleteSpaceData.id"
-              :space-name="deleteSpaceData.nama"
-              @deleted="onSpaceDeleted"
-            />
-            <CreateBoardModal
-              v-model="showCreateBoard"
-              :space="selectedSpaceForBoard"
-              @created="onBoardCreated"
-            />
-            <DeleteBoardModal
-              v-if="deleteBoardData"
-              v-model="showDeleteBoard"
-              :space-id="deleteBoardData.spaceId"
-              :board-id="deleteBoardData.boardId"
-              :board-name="deleteBoardData.boardName"
-              @deleted="onBoardDeleted"
-            />
-
-            <CreateEpicModal
-              v-model="showCreateEpic"
-              :board-id="boardId"
-              @created="onEpicCreated"
-            />
-            <CreateTaskModal
-              v-model="showCreateTask"
-              :board-id="boardId"
-              :board-members="boardMembers"
-              :available-labels="allLabels"
-              @created="handleTaskCreated"
-            />
           </div>
         </template>
       </main>
     </div>
+
+    <!-- Modals -->
+    <RecentActivityModal v-model="showRecent" :space-id="activeSpaceId" />
+    <CreateSpaceModal
+      v-model="showCreateSpace"
+      :edit-data="editSpaceData"
+      @created="onSpaceSaved"
+    />
+    <DeleteSpaceModal
+      v-if="deleteSpaceData"
+      v-model="showDeleteSpace"
+      :space-id="deleteSpaceData.id"
+      :space-name="deleteSpaceData.nama"
+      @deleted="onSpaceDeleted"
+    />
+    <CreateBoardModal
+      v-model="showCreateBoard"
+      :space="selectedSpaceForBoard"
+      @created="onBoardCreated"
+    />
+    <DeleteBoardModal
+      v-if="deleteBoardData"
+      v-model="showDeleteBoard"
+      :space-id="deleteBoardData.spaceId"
+      :board-id="deleteBoardData.boardId"
+      :board-name="deleteBoardData.boardName"
+      @deleted="onBoardDeleted"
+    />
+
+    <CreateEpicModal
+      v-if="activeBoardId > 0"
+      v-model="showCreateEpic"
+      :board-id="activeBoardId"
+      @created="onEpicCreated"
+    />
+    <CreateTaskModal
+      v-if="activeBoardId > 0"
+      v-model="showCreateTask"
+      :board-id="activeBoardId"
+      :board-members="boardMembers"
+      :available-labels="availableLabels"
+      @created="handleTaskCreated"
+    />
+
+    <v-snackbar v-model="showWorkflowSettings" timeout="2000" location="top">
+      Workflow settings — coming soon
+    </v-snackbar>
+    <v-snackbar v-model="showBoardSettings" timeout="2000" location="top">
+      Board settings — coming soon
+    </v-snackbar>
+    <v-snackbar v-model="showSpaceSettings" timeout="2000" location="top">
+      Space settings — use the sidebar to manage spaces
+    </v-snackbar>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { RouterLink, useRouter } from "vue-router";
+import { ref, computed, onMounted, watch } from "vue";
 import { Bar, Pie } from "vue-chartjs";
 import {
   Chart as ChartJS,
@@ -143,18 +159,26 @@ import {
 } from "chart.js";
 import api from "../api/axios";
 import { useAuthStore } from "../stores/auth";
-import type { DashboardData, DashboardSummary, Space, Board } from "../types";
+import { useSpaceStore } from "@/stores/space";
+import type {
+  DashboardData,
+  DashboardSummary,
+  Space,
+  Board,
+  Epic,
+} from "../types";
 import "../assets/css/dashboard.css";
+
 import RecentActivityModal from "@/components/RecentActivityModal.vue";
 import CreateSpaceModal from "../components/CreateSpaceModal.vue";
 import DeleteSpaceModal from "../components/DeleteSpaceModal.vue";
 import CreateBoardModal from "../components/CreateBoardModal.vue";
 import DeleteBoardModal from "../components/DeleteBoardModal.vue";
-import { useSpaceStore } from "@/stores/space";
 import TopbarComponent from "@/components/TopbarComponent.vue";
 import SidebarComponent from "@/components/SidebarComponent.vue";
 import CreateTaskModal from "../components/CreateTaskModal.vue";
 import CreateEpicModal from "../components/CreateEpicModal.vue";
+import { useRoute } from "vue-router";
 
 ChartJS.register(
   CategoryScale,
@@ -165,23 +189,24 @@ ChartJS.register(
   Legend,
 );
 
-const SPACE_ID = 1;
-const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
 const spaceStore = useSpaceStore();
 
 const activeView = ref<"dashboard" | "space">("dashboard");
-
-const showRecent = ref<boolean>(false);
-const showCreateSpace = ref<boolean>(false);
-const showDeleteSpace = ref<boolean>(false);
-const showCreateBoard = ref<boolean>(false);
-const showDeleteBoard = ref<boolean>(false);
-const showCreateEpic = ref<boolean>(false);
-const showCreateTask = ref<boolean>(false);
-
-const spacesExpanded = ref<boolean>(true);
-const expandedSpaces = ref<number[]>([]);
+const activeSpaceId = ref<number>(0);
+const activeBoardId = ref<number>(0);
+const showRecent = ref(false);
+const showCreateSpace = ref(false);
+const showDeleteSpace = ref(false);
+const showCreateBoard = ref(false);
+const showDeleteBoard = ref(false);
+const showCreateEpic = ref(false);
+const showCreateTask = ref(false);
+const showSpaceSettings = ref(false);
+const showWorkflowSettings = ref(false);
+const showBoardSettings = ref(false);
+const currentTab = ref<"timeline" | "backlog" | null>(null);
 const editSpaceData = ref<Space | null>(null);
 const deleteSpaceData = ref<Space | null>(null);
 const selectedSpaceForBoard = ref<Space | null>(null);
@@ -190,32 +215,36 @@ const deleteBoardData = ref<{
   boardId: number;
   boardName: string;
 } | null>(null);
-const activeSpaceId = ref<number>(0);
-const activeBoardId = ref<number>(0);
-const searchQuery = ref<string>("");
-const loading = ref<boolean>(false);
+
+const loading = ref(false);
 const dashboardData = ref<DashboardData | null>(null);
 
-const userInitial = computed<string>(
-  () => authStore.user?.name?.charAt(0).toUpperCase() || "U",
-);
+const showCreateButton = computed(() => {
+  const isBoardPage = route.path.startsWith("/board");
+  return isBoardPage && currentTab.value !== null;
+});
 
-const activeTab = ref<"timeline" | "backlog" | null>(null);
-
-const toggleSpace = (spaceId: number): void => {
-  activeSpaceId.value = spaceId;
-  activeView.value = "space";
-
-  const idx = expandedSpaces.value.indexOf(spaceId);
-  if (idx === -1) {
-    expandedSpaces.value.push(spaceId);
-    spaceStore.ambilBoards(spaceId);
-  } else {
-    expandedSpaces.value.splice(idx, 1);
+const boardMembers = computed(() => {
+  if (!activeSpaceId.value) return [];
+  const space = spaceStore.spaces.find((s) => s.id === activeSpaceId.value);
+  if (!space) return [];
+  const members = space.member_emails ?? [];
+  const list = members.map((email: string, i: number) => ({
+    id: i + 100,
+    name: email.split("@")[0],
+    email,
+  }));
+  if (authStore.user) {
+    list.unshift({
+      id: authStore.user.id,
+      name: authStore.user.name,
+      email: authStore.user.email,
+    });
   }
+  return list;
+});
 
-  ambilData();
-};
+const availableLabels = ref<string[]>([]);
 
 const summaryCards = [
   { key: "completed", label: "Completed", icon: "mdi-checkbox-marked-outline" },
@@ -227,7 +256,6 @@ const summaryCards = [
 const barChartData = computed(() => {
   if (!dashboardData.value) return null;
   const pb = dashboardData.value.priority_breakdown;
-
   return {
     labels: ["Highest", "High", "Medium", "Low", "Lowest"],
     datasets: [
@@ -250,19 +278,13 @@ const barChartData = computed(() => {
 const barOptions = {
   responsive: true,
   maintainAspectRatio: false,
-  plugins: {
-    legend: { display: false },
-  },
+  plugins: { legend: { display: false } },
   scales: {
     y: {
       beginAtZero: true,
       max: 100,
       grid: { color: "rgba(130,144,164,0.2)" },
-      ticks: {
-        stepSize: 10,
-        color: "#65A9EC",
-        font: { size: 11 },
-      },
+      ticks: { stepSize: 10, color: "#65A9EC", font: { size: 11 } },
     },
     x: {
       grid: { display: false },
@@ -313,55 +335,22 @@ const pieOptions = {
   },
 };
 
-const toggleExpandSpace = (spaceId: number): void => {
-  const idx = expandedSpaces.value.indexOf(spaceId);
-  if (idx === -1) {
-    expandedSpaces.value.push(spaceId);
-    spaceStore.ambilBoards(spaceId);
-  } else {
-    expandedSpaces.value.splice(idx, 1);
-  }
-};
-
-const pilihSpace = (id: number): void => {
-  activeSpaceId.value = id;
-  activeView.value = "space";
-  if (!expandedSpaces.value.includes(id)) {
-    expandedSpaces.value.push(id);
-    spaceStore.ambilBoards(id);
-  }
-  ambilData();
-};
-
-const pilihBoard = (board: Board): void => {
-  activeBoardId.value = board.id;
-  router.push(`/board/${board.id}`);
-};
-
-const goToBoardSetting = (board: Board): void => {
-  // router.push(`/board/${board.id}/setting`)
-};
-
 const openCreateSpace = (): void => {
   editSpaceData.value = null;
   showCreateSpace.value = true;
 };
-
 const openEditSpace = (space: Space): void => {
   editSpaceData.value = space;
   showCreateSpace.value = true;
 };
-
 const openDeleteSpace = (space: Space): void => {
   deleteSpaceData.value = space;
   showDeleteSpace.value = true;
 };
-
 const openCreateBoard = (space: Space): void => {
   selectedSpaceForBoard.value = space;
   showCreateBoard.value = true;
 };
-
 const openDeleteBoard = (space: Space, board: Board): void => {
   deleteBoardData.value = {
     spaceId: space.id,
@@ -377,7 +366,6 @@ const onSpaceSaved = (): void => {
     ambilData();
   }
 };
-
 const onSpaceDeleted = (): void => {
   if (spaceStore.spaces.length > 0) {
     activeSpaceId.value = spaceStore.spaces[0]?.id ?? 0;
@@ -388,32 +376,45 @@ const onSpaceDeleted = (): void => {
     dashboardData.value = null;
   }
 };
-
 const onBoardCreated = (): void => {
   if (selectedSpaceForBoard.value) {
     const spaceId = selectedSpaceForBoard.value.id;
-    if (!expandedSpaces.value.includes(spaceId)) {
-      expandedSpaces.value.push(spaceId);
-    }
+    spaceStore.ambilBoards(spaceId);
   }
 };
-
 const onBoardDeleted = (): void => {
   activeBoardId.value = 0;
 };
 
+const handleCreateClick = (): void => {
+  if (activeBoardId.value === 0) {
+    console.warn("No active board selected");
+    return;
+  }
+  if (currentTab.value === "timeline") {
+    showCreateEpic.value = true;
+  } else if (currentTab.value === "backlog") {
+    showCreateTask.value = true;
+  }
+};
+
+const onEpicCreated = (epic: Epic): void => {
+  console.log("Epic created:", epic.kode);
+};
+
+const handleTaskCreated = (task: any): void => {
+  console.log("Task created:", task.kode);
+};
+
 const ambilData = async (): Promise<void> => {
   loading.value = true;
-
   try {
     let res;
-
     if (activeView.value === "dashboard") {
       res = await api.get("/dashboard");
     } else {
       res = await api.get(`/spaces/${activeSpaceId.value}/dashboard`);
     }
-
     dashboardData.value = res.data;
   } catch (err) {
     console.error("Gagal ambil data dashboard:", err);
@@ -422,13 +423,15 @@ const ambilData = async (): Promise<void> => {
   }
 };
 
-const handleCreateClick = () => {
-  if (activeTab.value === "timeline") {
-    showCreateEpic.value = true;
-  } else if (activeTab.value === "backlog") {
-    showCreateTask.value = true;
-  }
-};
+watch(
+  () => route.path,
+  (path) => {
+    if (!path.startsWith("/board")) {
+      currentTab.value = null;
+    }
+  },
+);
+
 onMounted(async () => {
   await spaceStore.ambilSpaces();
   activeView.value = "dashboard";

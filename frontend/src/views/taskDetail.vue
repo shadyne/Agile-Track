@@ -1,21 +1,6 @@
 <template>
   <div class="epic-detail-layout">
-    <SidebarComponent
-      v-model:active-view="activeView"
-      v-model:active-space-id="activeSpaceId"
-      :active-board-id="boardId"
-      @open-recent="() => {}"
-      @open-create-space="() => {}"
-      @open-edit-space="() => {}"
-      @open-delete-space="() => {}"
-      @open-create-board="() => {}"
-      @open-delete-board="() => {}"
-      @space-selected="() => {}"
-    />
-
     <div class="epic-detail-main">
-      <TopbarComponent />
-
       <div
         style="
           padding: 16px 28px 0;
