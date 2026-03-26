@@ -133,20 +133,41 @@
             />
           </div>
 
-          <div v-if="item.children && item.children.length" class="mb-6">
+          <div class="mb-6">
             <div class="child-table-wrap">
-              <div class="child-table-header">
-                <span class="child-table-title">Sub Tasks</span>
-              </div>
-
-              <div class="progress-bar-wrap">
+              <div class="p-1">
                 <div class="progress-bar-track">
                   <div
                     class="progress-bar-fill"
                     :style="{ width: `${progressPersen}%` }"
                   />
                 </div>
-                <p class="progress-label">{{ progressPersen }}% Done</p>
+              </div>
+
+              <p class="progress-label p-1">{{ progressPersen }}% Done</p>
+
+              <div class="child-table-header">
+                <span class="child-table-title">Child work items</span>
+                <div class="child-table-actions">
+                  <v-btn
+                    icon="mdi-dots-horizontal"
+                    variant="text"
+                    size="x-small"
+                  />
+                  <v-btn
+                    icon="mdi-trash-can-outline"
+                    variant="text"
+                    size="x-small"
+                    color="cancel"
+                  />
+                  <v-btn
+                    icon="mdi-plus"
+                    variant="text"
+                    size="x-small"
+                    color="primary"
+                    @click="showCreateChild = true"
+                  />
+                </div>
               </div>
 
               <div class="child-table-col-header">
@@ -566,6 +587,10 @@
         </div>
       </div>
     </div>
+    <CreateChildItemModal
+      v-model="showCreateChild"
+      @submit="handleCreateChild"
+    />
   </div>
 </template>
 
@@ -581,6 +606,7 @@ import type { EpicItem, EpicHistory, EpicComment } from "../types";
 import "../assets/css/dashboard.css";
 import "../assets/css/board.css";
 import "../assets/css/epic-detail.css";
+import CreateChildItemModal from "@/components/CreateChildComponent.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -595,7 +621,7 @@ const loading = ref(false);
 const saving = ref(false);
 const boardNama = ref("");
 const boardMembers = ref<{ id: number; name: string; email: string }[]>([]);
-
+const showCreateChild = ref(false);
 const editJudul = ref("");
 const editDeskripsi = ref("");
 const editEstimate = ref("");
@@ -739,6 +765,22 @@ const ambilItem = async () => {
     console.error("Gagal ambil item:", err);
   } finally {
     loading.value = false;
+  }
+};
+const handleCreateChild = async (title: string) => {
+  console.log("child", item.value);
+
+  if (!item.value) return;
+
+  try {
+    const res = await api.post(`/boards/${boardId}/items/${itemId}/children`, {
+      judul: title,
+    });
+
+    if (!item.value.children) item.value.children = [];
+    item.value.children.push(res.data.data);
+  } catch (err) {
+    console.error("Gagal tambah child:", err);
   }
 };
 

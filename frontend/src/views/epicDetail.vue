@@ -97,6 +97,16 @@
 
           <div class="mb-6">
             <div class="child-table-wrap">
+              <div class="p-1">
+                <div class="progress-bar-track">
+                  <div
+                    class="progress-bar-fill"
+                    :style="{ width: `${progressPersen}%` }"
+                  />
+                </div>
+              </div>
+
+              <p class="progress-label p-1">{{ progressPersen }}% Done</p>
               <div class="child-table-header">
                 <span class="child-table-title">Child work items</span>
                 <div class="child-table-actions">
@@ -116,18 +126,9 @@
                     variant="text"
                     size="x-small"
                     color="primary"
+                    @click="showCreateChild = true"
                   />
                 </div>
-              </div>
-
-              <div class="progress-bar-wrap">
-                <div class="progress-bar-track">
-                  <div
-                    class="progress-bar-fill"
-                    :style="{ width: `${progressPersen}%` }"
-                  />
-                </div>
-                <p class="progress-label">{{ progressPersen }}% Done</p>
               </div>
 
               <div class="child-table-col-header">
@@ -570,6 +571,10 @@
         </div>
       </div>
     </div>
+    <CreateChildItemModal
+      v-model="showCreateChild"
+      @submit="handleCreateChild"
+    />
   </div>
 </template>
 
@@ -578,13 +583,12 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useSpaceStore } from "../stores/space";
-import SidebarComponent from "../components/SidebarComponent.vue";
-import TopbarComponent from "../components/TopbarComponent.vue";
 import api from "../api/axios";
 import type { Epic, EpicHistory } from "../types";
 import "../assets/css/dashboard.css";
 import "../assets/css/board.css";
 import "../assets/css/epic-detail.css";
+import CreateChildItemModal from "@/components/CreateChildComponent.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -604,6 +608,9 @@ const linkedType = ref<string>("is blocked by");
 const linkedUrl = ref<string>("");
 const boardNama = ref<string>("");
 const boardMembers = ref<{ id: number; name: string; email: string }[]>([]);
+const showCreateChild = ref(false);
+const newChildTitle = ref("");
+const loadingCreateChild = ref(false);
 
 const activeView = ref<"dashboard" | "space">("space");
 const activeSpaceId = ref<number>(0);
@@ -723,6 +730,21 @@ const ambilEpic = async (): Promise<void> => {
   }
 };
 
+const handleCreateChild = async (title: string): Promise<void> => {
+  console.log(epic.value, "item");
+
+  if (!epic.value) return;
+  try {
+    const res = await api.post(`/boards/${boardId}/epics/${epicId}/items`, {
+      judul: title,
+    });
+
+    if (!epic.value?.items) epic.value.items = [];
+    epic.value.items.push(res.data.data);
+  } catch (err) {
+    console.error("Gagal tambah child:", err);
+  }
+};
 const ambilHistory = async (): Promise<void> => {
   loadingHistory.value = true;
   try {

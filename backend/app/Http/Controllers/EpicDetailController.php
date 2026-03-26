@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Epic;
+use App\Models\EpicItem;
+
 use App\Models\EpicComment;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
@@ -69,6 +71,36 @@ class EpicDetailController extends Controller
         ]);
     }
 
+    public function storeChild(Request $request, $boardId, $epicId)
+    {
+        $epic = Epic::where('board_id', $boardId)->findOrFail($epicId);
+
+        $request->validate([
+            'judul' => 'required|string|max:100',
+        ]);
+
+        $last = EpicItem::where('board_id', $boardId)->latest()->first();
+        $nextNumber = $last ? ((int) filter_var($last->kode, FILTER_SANITIZE_NUMBER_INT)) + 1 : 1;
+
+        $kode = 'DEV-' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+
+        $task = EpicItem::create([
+            'board_id'   => $boardId,
+            'epic_id'    => $epicId,
+            'judul'      => $request->judul,
+            'kode'       => $kode,
+            'type'       => 'task', 
+            'priority'   => 'medium',
+            'status'     => 'to_do',
+            'user_id'    => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'message' => 'Child item created',
+            'data'    => $task->load('user'),
+        ], 201);
+    }
+
     public function storeComment(Request $request, $boardId, $epicId)
     {
         Epic::where('board_id', $boardId)->findOrFail($epicId);
@@ -88,6 +120,7 @@ class EpicDetailController extends Controller
             'data'    => $comment->load('user'),
         ], 201);
     }
+
 
     public function deleteComment(Request $request, $boardId, $epicId, $commentId)
     {

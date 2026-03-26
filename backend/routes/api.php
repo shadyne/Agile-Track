@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/boards/{boardId}/epics/{epicId}', [EpicDetailController::class, 'update']);
     Route::delete('/boards/{boardId}/epics/{epicId}', [EpicController::class, 'destroy']);
     Route::post('/boards/{boardId}/epics/{epicId}/items', [EpicController::class, 'storeItem']);
+    Route::post('/boards/{boardId}/epics/{epicId}/items', [EpicDetailController::class, 'storeChild']);
     Route::get('/boards/{boardId}/epics/{epicId}/history', [EpicDetailController::class, 'history']);
     Route::post('/boards/{boardId}/epics/{epicId}/comments', [EpicDetailController::class, 'storeComment']);
     Route::delete('/boards/{boardId}/epics/{epicId}/comments/{commentId}', [EpicDetailController::class, 'deleteComment']);
@@ -60,6 +61,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Item Detail (EpicItem)
     Route::get('/boards/{boardId}/items/{itemId}', [ItemDetailController::class, 'show']);
     Route::put('/boards/{boardId}/items/{itemId}', [ItemDetailController::class, 'update']);
+    Route::post('/boards/{board}/items/{item}/children', [ItemDetailController::class, 'storeChild']);
     Route::get('/boards/{boardId}/items/{itemId}/history', [ItemDetailController::class, 'history']);
 
     // Dashboard

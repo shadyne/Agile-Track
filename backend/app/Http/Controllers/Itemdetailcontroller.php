@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\EpicItem;
+use App\Models\Epic;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 
@@ -17,6 +18,7 @@ class ItemDetailController extends Controller
             'sprint',
             'parent',
             'children.assignee',
+            'children',
             'children.epic',
         ])
         ->where('board_id', $boardId)
@@ -70,8 +72,45 @@ class ItemDetailController extends Controller
         return response()->json([
             'message' => 'Task diupdate',
             'data'    => $item->fresh([
-                'epic', 'user', 'assignee', 'sprint', 'parent', 'children.assignee',
+                'epic', 'user', 'assignee', 'sprint', 'parent', 
+                'children.assignee', 'children.epic', 'children'
             ]),
+        ]);
+    }
+
+    public function storeChild(Request $request, $boardId, $epicId)
+    {
+        $epic = null;
+
+        $request->validate([
+            'judul' => 'required|string|max:255',
+            'parent_id' => 'nullable|exists:epic_items,id', 
+        ]);
+
+        $parent = null;
+        if ($request->has('parent_id')) {
+            $parent = EpicItem::where('board_id', $boardId)
+                            ->findOrFail($request->parent_id);
+        }
+
+        $last = EpicItem::where('board_id', $boardId)->latest()->first();
+        $nextNumber = $last ? ((int) filter_var($last->kode, FILTER_SANITIZE_NUMBER_INT)) + 1 : 1;
+        $kode = 'DEV-' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+
+        $task = EpicItem::create([
+            'board_id'   => $boardId,
+            'parent_id'  => $parent?->id,
+            'judul'      => $request->judul,
+            'kode'       => $kode,
+            'type'       => 'task',
+            'priority'   => 'medium',
+            'status'     => 'to_do',
+            'user_id'    => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'message' => 'Child berhasil dibuat',
+            'data'    => $task->load(['assignee', 'epic']),
         ]);
     }
 
