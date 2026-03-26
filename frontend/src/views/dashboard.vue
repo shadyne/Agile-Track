@@ -14,11 +14,7 @@
     />
 
     <div class="main-area">
-      <TopbarComponent
-        @open-space-settings="showSpaceSettings = true"
-        @open-workflow-settings="showWorkflowSettings = true"
-        @open-board-settings="showBoardSettings = true"
-      >
+      <TopbarComponent @open-workflow-settings="showWorkflowSettings = true">
         <template #actions>
           <v-btn
             v-if="showCreateButton"
@@ -135,12 +131,6 @@
 
     <v-snackbar v-model="showWorkflowSettings" timeout="2000" location="top">
       Workflow settings — coming soon
-    </v-snackbar>
-    <v-snackbar v-model="showBoardSettings" timeout="2000" location="top">
-      Board settings — coming soon
-    </v-snackbar>
-    <v-snackbar v-model="showSpaceSettings" timeout="2000" location="top">
-      Space settings — use the sidebar to manage spaces
     </v-snackbar>
   </div>
 </template>

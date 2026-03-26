@@ -41,24 +41,10 @@
           </v-list-subheader>
           <v-divider class="mb-1" />
           <v-list-item
-            prepend-icon="mdi-view-dashboard-outline"
-            title="Spaces"
-            subtitle="Manage your spaces"
-            @click="emit('openSpaceSettings')"
-            rounded="lg"
-          />
-          <v-list-item
             prepend-icon="mdi-sitemap-outline"
             title="Workflow"
             subtitle="Configure statuses & flow"
             @click="emit('openWorkflowSettings')"
-            rounded="lg"
-          />
-          <v-list-item
-            prepend-icon="mdi-view-column-outline"
-            title="Board"
-            subtitle="Manage board settings"
-            @click="emit('openBoardSettings')"
             rounded="lg"
           />
         </v-list>
@@ -102,9 +88,7 @@ import { ref, computed } from "vue";
 import { useAuthStore } from "../stores/auth";
 
 const emit = defineEmits<{
-  (e: "openSpaceSettings"): void;
   (e: "openWorkflowSettings"): void;
-  (e: "openBoardSettings"): void;
 }>();
 
 const authStore = useAuthStore();
