@@ -14,7 +14,7 @@
     />
 
     <div class="main-area">
-      <TopbarComponent @open-workflow-settings="showWorkflowSettings = true">
+      <TopbarComponent @openWorkflowSettings="openWorkflowSettings">
         <template #actions>
           <v-btn
             v-if="showCreateButton"
@@ -129,12 +129,15 @@
       @created="handleTaskCreated"
     />
 
-    <v-snackbar v-model="showWorkflowSettings" timeout="2000" location="top">
-      Workflow settings — coming soon
-    </v-snackbar>
+    <WorkflowSettings
+      v-if="showWorkflowSettings"
+      :workflow-name="'DEV Workflow - With QA'"
+      :used-in-spaces="1"
+      @close="showWorkflowSettings = false"
+      @saved="handleWorkflowSaved"
+    />
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { Bar, Pie } from "vue-chartjs";
@@ -168,6 +171,9 @@ import TopbarComponent from "@/components/TopbarComponent.vue";
 import SidebarComponent from "@/components/SidebarComponent.vue";
 import CreateTaskModal from "../components/CreateTaskModal.vue";
 import CreateEpicModal from "../components/CreateEpicModal.vue";
+
+import { useWorkflowStore } from "../stores/workflow";
+import type { WorkflowStatus } from "../stores/workflow";
 import { useRoute } from "vue-router";
 
 ChartJS.register(
@@ -182,6 +188,7 @@ ChartJS.register(
 const route = useRoute();
 const authStore = useAuthStore();
 const spaceStore = useSpaceStore();
+const workflowStore = useWorkflowStore();
 
 const activeView = ref<"dashboard" | "space">("dashboard");
 const activeSpaceId = ref<number>(0);
@@ -193,9 +200,8 @@ const showCreateBoard = ref(false);
 const showDeleteBoard = ref(false);
 const showCreateEpic = ref(false);
 const showCreateTask = ref(false);
-const showSpaceSettings = ref(false);
 const showWorkflowSettings = ref(false);
-const showBoardSettings = ref(false);
+const showWorkflow = ref(false);
 const currentTab = ref<"timeline" | "backlog" | null>(null);
 const editSpaceData = ref<Space | null>(null);
 const deleteSpaceData = ref<Space | null>(null);
@@ -214,6 +220,13 @@ const showCreateButton = computed(() => {
   return isBoardPage && currentTab.value !== null;
 });
 
+const openWorkflowSettings = () => {
+  showWorkflowSettings.value = true;
+};
+
+const handleWorkflowSaved = (statuses) => {
+  console.log("Workflow saved:", statuses);
+};
 const boardMembers = computed(() => {
   if (!activeSpaceId.value) return [];
   const space = spaceStore.spaces.find((s) => s.id === activeSpaceId.value);
@@ -281,6 +294,10 @@ const barOptions = {
       ticks: { color: "#65A9EC", font: { size: 11 } },
     },
   },
+};
+
+const onWorkflowSaved = (statuses: WorkflowStatus[]) => {
+  workflowStore.updateStatuses(statuses);
 };
 
 const pieChartData = computed(() => {

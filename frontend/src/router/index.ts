@@ -10,6 +10,7 @@ import DashboardView from "../views/dashboard.vue";
 import BoardView from "../views/board.vue";
 import EpicDetailView from "../views/epicDetail.vue";
 import ItemDetailView from "../views/taskDetail.vue";
+import WorkflowSettings from "@/views/WorkflowSettings.vue";
 
 const routes: RouteRecordRaw[] = [
   {
@@ -52,6 +53,12 @@ const routes: RouteRecordRaw[] = [
         path: "/board/:boardId/item/:itemId",
         name: "item-detail",
         component: ItemDetailView,
+        meta: { requiresAuth: true },
+      },
+      {
+        path: "/workflow-settings",
+        name: "workflow",
+        component: WorkflowSettings,
         meta: { requiresAuth: true },
       },
     ],

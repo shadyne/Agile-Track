@@ -28,7 +28,7 @@
             <v-icon icon="mdi-cog-outline" size="20" />
           </button>
         </template>
-        <v-list rounded="lg" elevation="3" min-width="200" density="compact">
+        <v-list rounded="lg" elevation="3" min-width="220" density="compact">
           <v-list-subheader
             style="
               font-weight: 700;
@@ -44,9 +44,23 @@
             prepend-icon="mdi-sitemap-outline"
             title="Workflow"
             subtitle="Configure statuses & flow"
-            @click="emit('openWorkflowSettings')"
             rounded="lg"
+            v-on:click="openWorkflowSettings"
           />
+          <!-- <v-list-item
+            prepend-icon="mdi-label-outline"
+            title="Labels"
+            subtitle="Manage project labels"
+            rounded="lg"
+            disabled
+          />
+          <v-list-item
+            prepend-icon="mdi-account-group-outline"
+            title="Members"
+            subtitle="Team & permissions"
+            rounded="lg"
+            disabled
+          /> -->
         </v-list>
       </v-menu>
 
@@ -74,8 +88,8 @@
             prepend-icon="mdi-logout"
             title="Logout"
             base-color="cancel"
-            @click="handleLogout"
             rounded="lg"
+            @click="handleLogout"
           />
         </v-list>
       </v-menu>
@@ -86,10 +100,13 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useAuthStore } from "../stores/auth";
+import { useRouter } from "vue-router";
 
-const emit = defineEmits<{
-  (e: "openWorkflowSettings"): void;
-}>();
+const router = useRouter();
+
+const openWorkflowSettings = () => {
+  router.push("/workflow-settings");
+};
 
 const authStore = useAuthStore();
 const searchQuery = ref<string>("");
