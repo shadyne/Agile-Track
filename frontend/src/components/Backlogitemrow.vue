@@ -54,21 +54,25 @@
         <template #activator="{ props: menuProps }">
           <span
             class="status-badge"
-            :class="`status-${item.status}`"
+            :style="workflowStore.getStatusStyle(item.status)"
             v-bind="menuProps"
             style="cursor: pointer"
           >
-            {{ getStatusLabel(item.status) }}
+            {{ workflowStore.getStatusLabel(item.status) }}
             <v-icon icon="mdi-chevron-down" size="10" />
           </span>
         </template>
-        <v-list density="compact" min-width="160" rounded="lg" elevation="3">
+        <v-list density="compact" min-width="180" rounded="lg" elevation="3">
           <v-list-item
-            v-for="s in statusOptions"
+            v-for="s in workflowStore.statuses"
             :key="s.value"
-            :title="s.label"
             @click="emit('statusChange', s.value)"
-          />
+          >
+            <template #prepend>
+              <span class="status-dot" :style="{ backgroundColor: s.color }" />
+            </template>
+            <v-list-item-title>{{ s.label }}</v-list-item-title>
+          </v-list-item>
         </v-list>
       </v-menu>
 
@@ -124,8 +128,11 @@
       <div class="row-right">
         <span v-if="child.epic" class="epic-badge">{{ child.epic.kode }}</span>
         <span v-else class="epic-badge-none">+ Epic</span>
-        <span class="status-badge" :class="`status-${child.status}`">
-          {{ getStatusLabel(child.status) }}
+        <span
+          class="status-badge"
+          :style="workflowStore.getStatusStyle(child.status)"
+        >
+          {{ workflowStore.getStatusLabel(child.status) }}
         </span>
         <span class="estimate-col">{{ child.original_estimate || "0m" }}</span>
         <span
@@ -147,34 +154,17 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import type { EpicItem, EpicItemStatus } from "../types";
+import type { EpicItem } from "../types";
 import { RouterLink } from "vue-router";
+import { useWorkflowStore } from "../stores/workflow";
 
 const props = defineProps<{ item: EpicItem }>();
 const emit = defineEmits<{
-  (e: "statusChange", status: EpicItemStatus): void;
+  (e: "statusChange", status: string): void;
 }>();
 
+const workflowStore = useWorkflowStore();
 const expanded = ref(false);
-
-const statusOptions = [
-  { label: "To Do", value: "to_do" },
-  { label: "In Progress", value: "in_progress" },
-  { label: "Done by Dev", value: "done_by_dev" },
-  { label: "Testing", value: "testing" },
-  { label: "Done by QA", value: "done_by_qa" },
-] as const;
-
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    to_do: "TO DO",
-    in_progress: "IN PROGRESS",
-    done_by_dev: "DONE BY DEV",
-    testing: "TESTING",
-    done_by_qa: "DONE BY QA",
-  };
-  return map[status] ?? status.toUpperCase();
-};
 
 const getPriorityColor = (p: string) => {
   const map: Record<string, string> = {
@@ -226,7 +216,6 @@ const getLabelColor = (label: string) => {
   gap: 8px;
   transition: background 0.12s;
 }
-
 .backlog-row:hover {
   background: #f9fafb;
 }
@@ -250,7 +239,6 @@ const getLabelColor = (label: string) => {
   overflow: hidden;
   min-width: 0;
 }
-
 .row-right {
   display: flex;
   align-items: center;
@@ -264,7 +252,6 @@ const getLabelColor = (label: string) => {
   flex-shrink: 0;
   accent-color: #020f40;
 }
-
 .expand-btn {
   width: 18px;
   height: 18px;
@@ -281,8 +268,8 @@ const getLabelColor = (label: string) => {
   color: #65a9ec;
   white-space: nowrap;
   flex-shrink: 0;
+  text-decoration: none;
 }
-
 .item-judul {
   font-size: 13px;
   color: #111827;
@@ -291,7 +278,6 @@ const getLabelColor = (label: string) => {
   text-overflow: ellipsis;
   flex: 1;
 }
-
 .item-label-tag {
   font-size: 10px;
   font-weight: 700;
@@ -314,13 +300,11 @@ const getLabelColor = (label: string) => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .epic-badge-none {
   font-size: 10px;
   color: #8290a4;
   cursor: pointer;
 }
-
 .epic-badge-none:hover {
   color: #020f40;
 }
@@ -329,33 +313,20 @@ const getLabelColor = (label: string) => {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 2px 7px;
+  padding: 3px 8px;
   border-radius: 4px;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
   white-space: nowrap;
+  cursor: pointer;
 }
 
-.status-to_do {
-  background: #e5e7eb;
-  color: #374151;
-}
-.status-in_progress {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-.status-done_by_dev {
-  background: #d1fae5;
-  color: #065f46;
-}
-.status-testing {
-  background: #fef9c3;
-  color: #854d0e;
-}
-.status-done_by_qa {
-  background: #dcfce7;
-  color: #166534;
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .estimate-col {
@@ -365,7 +336,6 @@ const getLabelColor = (label: string) => {
   min-width: 28px;
   text-align: center;
 }
-
 .priority-dot {
   width: 10px;
   height: 10px;

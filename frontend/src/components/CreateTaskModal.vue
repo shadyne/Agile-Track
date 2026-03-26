@@ -4,7 +4,6 @@
       <v-card-title class="modal-header">
         <span class="modal-title">Create Task</span>
       </v-card-title>
-
       <v-divider />
 
       <v-card-text class="modal-body">
@@ -92,6 +91,48 @@
           </div>
 
           <div class="field-wrap">
+            <label class="field-label">Initial Status</label>
+            <v-select
+              v-model="form.status"
+              variant="outlined"
+              :items="workflowStore.statuses"
+              item-title="label"
+              item-value="value"
+              placeholder="Select initial status"
+            >
+              <template #selection="{ item }">
+                <span
+                  style="
+                    padding: 2px 10px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    font-weight: 700;
+                  "
+                  :style="workflowStore.getStatusStyle(item.value)"
+                >
+                  {{ item.label }}
+                </span>
+              </template>
+              <template #item="{ item, props: itemProps }">
+                <v-list-item v-bind="itemProps">
+                  <template #prepend>
+                    <span
+                      style="
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 50%;
+                        margin-right: 6px;
+                        flex-shrink: 0;
+                      "
+                      :style="{ backgroundColor: item.raw?.color ?? '#6B7280' }"
+                    />
+                  </template>
+                </v-list-item>
+              </template>
+            </v-select>
+          </div>
+
+          <div class="field-wrap">
             <label class="field-label">Labels</label>
             <v-combobox
               v-model="form.labels"
@@ -161,9 +202,10 @@
                 size="20"
                 color="#8290A4"
               />
-              <span class="attachment-text">
-                Drop File Or <span class="attachment-browse">Browse</span>
-              </span>
+              <span class="attachment-text"
+                >Drop File Or
+                <span class="attachment-browse">Browse</span></span
+              >
               <input
                 ref="fileInputRef"
                 type="file"
@@ -248,7 +290,6 @@
       </v-card-text>
 
       <v-divider />
-
       <v-card-actions class="modal-actions">
         <v-btn
           color="cancel"
@@ -277,8 +318,9 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from "vue";
 import { useAuthStore } from "../stores/auth";
+import { useWorkflowStore } from "../stores/workflow";
 import api from "../api/axios";
-import type { EpicItem, EpicItemForm, Epic } from "../types";
+import type { EpicItem, EpicItemForm } from "../types";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -293,11 +335,12 @@ const emit = defineEmits<{
 }>();
 
 const authStore = useAuthStore();
+const workflowStore = useWorkflowStore();
 const isOpen = ref(props.modelValue);
 const loading = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
-const form = reactive<EpicItemForm>({
+const form = reactive<EpicItemForm & { status: string }>({
   judul: "",
   type: "task",
   priority: "medium",
@@ -311,6 +354,7 @@ const form = reactive<EpicItemForm>({
   sprint_id: props.sprintId ?? null,
   original_estimate: "",
   attachments: [],
+  status: "to_do",
 });
 
 const errors = reactive<Record<string, string>>({
@@ -325,7 +369,6 @@ const typeOptions = [
   { label: "Task", value: "task" },
   { label: "Story", value: "story" },
   { label: "Bug", value: "bug" },
-  { label: "Epic", value: "epic" },
   { label: "QA Task", value: "qa_task" },
 ];
 
@@ -336,8 +379,6 @@ const priorityOptions = [
   { label: "Low", value: "low" },
   { label: "Lowest", value: "lowest" },
 ];
-
-const epicOptions = computed(() => props.epics);
 
 const reporterInitial = computed(
   () => authStore.user?.name?.charAt(0).toUpperCase() || "U",
@@ -353,7 +394,6 @@ const getTypeIcon = (type: string): string => {
   };
   return icons[type] || "mdi-circle-outline";
 };
-
 const getTypeColor = (type: string): string => {
   const colors: Record<string, string> = {
     epic: "#7C3AED",
@@ -364,7 +404,6 @@ const getTypeColor = (type: string): string => {
   };
   return colors[type] || "#8290A4";
 };
-
 const getPriorityColor = (priority: string): string => {
   const map: Record<string, string> = {
     highest: "#DC2626",
@@ -379,19 +418,15 @@ const getPriorityColor = (priority: string): string => {
 const onLabelsChange = (val: string[]) => {
   if (val.length > 5) form.labels = val.slice(0, 5);
 };
-
 const triggerFileInput = () => fileInputRef.value?.click();
-
 const onFileChange = (e: Event) => {
   const input = e.target as HTMLInputElement;
   if (input.files) form.attachments.push(...Array.from(input.files));
 };
-
 const onFileDrop = (e: DragEvent) => {
   const files = e.dataTransfer?.files;
   if (files) form.attachments.push(...Array.from(files));
 };
-
 const removeFile = (i: number) => form.attachments.splice(i, 1);
 
 const resetForm = () => {
@@ -408,13 +443,13 @@ const resetForm = () => {
   form.sprint_id = props.sprintId ?? null;
   form.original_estimate = "";
   form.attachments = [];
+  form.status = workflowStore.statuses[0]?.value ?? "to_do";
   Object.keys(errors).forEach((k) => ((errors as any)[k] = ""));
 };
 
 const validate = (): boolean => {
   Object.keys(errors).forEach((k) => ((errors as any)[k] = ""));
   let valid = true;
-
   if (!form.judul.trim()) {
     errors.judul = "Task name wajib diisi";
     valid = false;
@@ -437,7 +472,6 @@ const validate = (): boolean => {
 const handleSubmit = async () => {
   if (!validate()) return;
   loading.value = true;
-
   try {
     const formData = new FormData();
     formData.append("judul", form.judul);
@@ -447,13 +481,12 @@ const handleSubmit = async () => {
     formData.append("start_date", form.start_date);
     formData.append("end_date", form.end_date);
     formData.append("original_estimate", form.original_estimate);
-
+    formData.append("status", form.status);
     if (form.assignee_id)
       formData.append("assignee_id", String(form.assignee_id));
     if (form.epic_id) formData.append("epic_id", String(form.epic_id));
     if (form.parent_id) formData.append("parent_id", String(form.parent_id));
     if (form.sprint_id) formData.append("sprint_id", String(form.sprint_id));
-
     form.labels.forEach((lbl, i) => formData.append(`labels[${i}]`, lbl));
     form.attachments.forEach((file, i) =>
       formData.append(`attachments[${i}]`, file),
@@ -464,7 +497,6 @@ const handleSubmit = async () => {
       formData,
       { headers: { "Content-Type": "multipart/form-data" } },
     );
-
     emit("created", res.data.data);
     isOpen.value = false;
   } catch (err: any) {

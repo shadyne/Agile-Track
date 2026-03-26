@@ -69,8 +69,8 @@
           />
           <v-select
             v-model="filterStatus"
-            label="Status Category"
-            :items="statusOptions"
+            label="Status"
+            :items="['All', ...workflowStore.statuses.map((s) => s.label)]"
             variant="outlined"
             density="compact"
             hide-details
@@ -132,7 +132,6 @@
               <div class="epic-row">
                 <div class="epic-row-left">
                   <input type="checkbox" class="row-checkbox" />
-
                   <span class="expand-btn" @click="toggleExpandEpic(epic.id)">
                     <v-icon
                       :icon="
@@ -144,21 +143,18 @@
                       :color="epic.items?.length ? '#020F40' : '#ccc'"
                     />
                   </span>
-
                   <v-icon
                     class="epic-type-icon"
                     :icon="getTypeIcon(epic.type)"
                     size="14"
                     :color="getTypeColor(epic.type)"
                   />
-
                   <RouterLink
                     :to="`/board/${boardId}/epic/${epic.id}`"
                     class="epic-key"
                   >
                     {{ epic.kode }}
                   </RouterLink>
-
                   <template v-if="epic.labels?.length">
                     <span
                       v-for="lbl in epic.labels"
@@ -173,9 +169,11 @@
                     </span>
                   </template>
 
-                  <!-- Status Badge -->
-                  <span class="status-badge" :class="`status-${epic.status}`">
-                    {{ getStatusLabel(epic.status) }}
+                  <span
+                    class="status-badge"
+                    :style="workflowStore.getStatusStyle(epic.status)"
+                  >
+                    {{ workflowStore.getStatusLabel(epic.status) }}
                   </span>
 
                   <span
@@ -213,22 +211,18 @@
                 >
                   <div class="child-row-left">
                     <input type="checkbox" class="row-checkbox" />
-
                     <span class="child-indent" />
-
                     <v-icon
                       :icon="getTypeIcon(item.type)"
                       size="13"
                       :color="getTypeColor(item.type)"
                     />
-
                     <RouterLink
                       :to="`/board/${boardId}/epic/${epic.id}`"
                       class="epic-key"
                     >
                       {{ item.kode }}
                     </RouterLink>
-
                     <template v-if="epic.labels?.length">
                       <span
                         v-for="lbl in epic.labels"
@@ -238,15 +232,15 @@
                           color: getLabelColor(lbl),
                           borderColor: getLabelColor(lbl),
                         }"
+                        >{{ lbl }}</span
                       >
-                        {{ lbl }}
-                      </span>
                     </template>
-
-                    <span class="status-badge" :class="`status-${item.status}`">
-                      {{ getStatusLabel(item.status) }}
+                    <span
+                      class="status-badge"
+                      :style="workflowStore.getStatusStyle(item.status)"
+                    >
+                      {{ workflowStore.getStatusLabel(item.status) }}
                     </span>
-
                     <span
                       class="priority-dot"
                       :style="{
@@ -255,7 +249,6 @@
                       :title="item.priority"
                     />
                   </div>
-
                   <div class="epic-bar-area">
                     <div
                       v-if="item.start_date && item.end_date"
@@ -286,6 +279,7 @@
         </div>
       </template>
 
+      <!-- BACKLOG TAB -->
       <template v-else-if="activeTab === 'backlog'">
         <BacklogView
           ref="backlogRef"
@@ -302,16 +296,16 @@
 import { ref, computed, onMounted, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import { useWorkflowStore } from "../stores/workflow";
 import api from "../api/axios";
 import type { Epic, Board, Space } from "../types";
 import "../assets/css/dashboard.css";
 import "../assets/css/board.css";
-import TopbarComponent from "@/components/TopbarComponent.vue";
-import SidebarComponent from "@/components/SidebarComponent.vue";
 import BacklogView from "../components/BacklogComponent.vue";
 
 const route = useRoute();
 const authStore = useAuthStore();
+const workflowStore = useWorkflowStore();
 const boardId = computed(() => Number(route.params.boardId));
 
 const board = ref<Board | null>(null);
@@ -320,28 +314,16 @@ const loadingEpics = ref<boolean>(false);
 const activeTab = ref<"timeline" | "backlog">("timeline");
 const expandedEpics = ref<number[]>([]);
 const viewMode = ref<string>("weeks");
-const showCreateTask = ref<boolean>(false);
 const timelineRef = ref<HTMLElement | null>(null);
 const filterUserId = ref<number | null>(null);
-const activeView = ref<"dashboard" | "space">("space");
-const activeSpaceId = ref<number>(0);
-const showCreateEpic = ref<boolean>(false);
-const showRecent = ref<boolean>(false);
-const showCreateSpace = ref<boolean>(false);
-const editSpaceData = ref<Space | null>(null);
-const deleteSpaceData = ref<Space | null>(null);
-const selectedSpace = ref<Space | null>(null);
+const showCreateTask = ref<boolean>(false);
 const backlogRef = ref();
-const deleteBoardData = ref<{
-  spaceId: number;
-  boardId: number;
-  boardName: string;
-} | null>(null);
 
 const filterEpic = ref("All");
 const filterType = ref("All");
 const filterLabel = ref("All");
 const filterStatus = ref("All");
+const filterUser = ref<number | "All">("All");
 
 watch(
   () => route.params.boardId,
@@ -362,54 +344,13 @@ watch(
   },
   { immediate: true },
 );
+
 const viewModes = [
   { label: "Today", value: "today" },
   { label: "Weeks", value: "weeks" },
   { label: "Months", value: "months" },
   { label: "Quarters", value: "quarters" },
 ];
-
-const statusOptions = [
-  "All",
-  "To Do",
-  "In Progress",
-  "Done by Dev",
-  "Testing",
-  "Done by QA",
-];
-
-const filterUser = ref<number | "All">("All");
-
-const assigneeOptions = computed(() => {
-  const users = epics.value
-    .map((e) => ({
-      id: e.assignee_id,
-      name: e.assignee?.name,
-    }))
-    .filter((u) => u.id);
-
-  const unique = Array.from(new Map(users.map((u) => [u.id, u])).values());
-
-  return [
-    { title: "All", value: "All" },
-    ...unique.map((u) => ({
-      title: u.name ?? `User ${u.id}`,
-      value: u.id,
-    })),
-  ];
-});
-
-const handleTaskCreated = (task: any) => {
-  backlogRef.value?.addTask(task);
-};
-
-const handleCreateClick = () => {
-  if (activeTab.value === "timeline") {
-    showCreateEpic.value = true;
-  } else if (activeTab.value === "backlog") {
-    showCreateTask.value = true;
-  }
-};
 
 const boardMembers = computed(() => {
   const members = board.value?.member_emails ?? [];
@@ -427,17 +368,12 @@ const boardMembers = computed(() => {
   }
   return list;
 });
-const userInitial = computed<string>(
-  () => authStore.user?.name?.charAt(0).toUpperCase() || "U",
-);
 
 const toggleUserFilter = (userId: number) => {
   filterUserId.value = filterUserId.value === userId ? null : userId;
 };
 
-const epicOptions = computed(() => {
-  return ["All", ...epics.value.map((e) => e.judul)];
-});
+const epicOptions = computed(() => ["All", ...epics.value.map((e) => e.judul)]);
 
 const allLabels = computed<string[]>(() => {
   const labels = epics.value
@@ -446,56 +382,40 @@ const allLabels = computed<string[]>(() => {
   return ["All", ...new Set(labels)];
 });
 
+const assigneeOptions = computed(() => {
+  const users = epics.value
+    .map((e) => ({ id: e.assignee_id, name: e.assignee?.name }))
+    .filter((u) => u.id);
+  const unique = Array.from(new Map(users.map((u) => [u.id, u])).values());
+  return [
+    { title: "All", value: "All" },
+    ...unique.map((u) => ({ title: u.name ?? `User ${u.id}`, value: u.id })),
+  ];
+});
+
 const filteredEpics = computed<Epic[]>(() => {
   return epics.value.filter((epic) => {
-    if (filterEpic.value !== "All" && epic.judul !== filterEpic.value) {
+    if (filterEpic.value !== "All" && epic.judul !== filterEpic.value)
       return false;
-    }
-
     if (filterStatus.value !== "All") {
-      const map: Record<string, string> = {
-        "To Do": "to_do",
-        "In Progress": "in_progress",
-        "Done by Dev": "done_by_dev",
-        Testing: "testing",
-        "Done by QA": "done_by_qa",
-      };
-      const mapped = map[filterStatus.value];
-      if (!mapped || epic.status !== mapped) return false;
+      const statusLabel = workflowStore.getStatusLabel(epic.status);
+      if (statusLabel !== filterStatus.value) return false;
     }
-
     if (
       filterLabel.value !== "All" &&
       epic.label?.toLowerCase() !== filterLabel.value.toLowerCase()
-    ) {
+    )
       return false;
-    }
-    if (filterUser.value !== "All") {
-      if (epic.assignee_id !== filterUser.value) {
-        return false;
-      }
-    }
-
+    if (filterUser.value !== "All" && epic.assignee_id !== filterUser.value)
+      return false;
     if (
       filterType.value !== "All" &&
       epic.type?.toLowerCase() !== filterType.value.toLowerCase()
-    ) {
+    )
       return false;
-    }
-
     return true;
   });
 });
-const getStatusLabel = (status: string): string => {
-  const map: Record<string, string> = {
-    to_do: "TO DO",
-    in_progress: "IN PROGRESS",
-    done_by_dev: "DONE BY DEV",
-    testing: "TESTING",
-    done_by_qa: "DONE BY QA",
-  };
-  return map[status] ?? status.toUpperCase();
-};
 
 const getPriorityColor = (priority: string): string => {
   const map: Record<string, string> = {
@@ -510,29 +430,19 @@ const getPriorityColor = (priority: string): string => {
 
 const timelineStart = computed(() => {
   const d = new Date();
-  if (viewMode.value === "today") {
-    d.setDate(d.getDate() - 3);
-  } else if (viewMode.value === "weeks") {
-    d.setDate(d.getDate() - 14);
-  } else if (viewMode.value === "months") {
-    d.setMonth(d.getMonth() - 1);
-  } else {
-    d.setMonth(d.getMonth() - 3);
-  }
+  if (viewMode.value === "today") d.setDate(d.getDate() - 3);
+  else if (viewMode.value === "weeks") d.setDate(d.getDate() - 14);
+  else if (viewMode.value === "months") d.setMonth(d.getMonth() - 1);
+  else d.setMonth(d.getMonth() - 3);
   return d;
 });
 
 const timelineEnd = computed(() => {
   const d = new Date();
-  if (viewMode.value === "today") {
-    d.setDate(d.getDate() + 14);
-  } else if (viewMode.value === "weeks") {
-    d.setDate(d.getDate() + 30);
-  } else if (viewMode.value === "months") {
-    d.setMonth(d.getMonth() + 3);
-  } else {
-    d.setMonth(d.getMonth() + 9);
-  }
+  if (viewMode.value === "today") d.setDate(d.getDate() + 14);
+  else if (viewMode.value === "weeks") d.setDate(d.getDate() + 30);
+  else if (viewMode.value === "months") d.setMonth(d.getMonth() + 3);
+  else d.setMonth(d.getMonth() + 9);
   return d;
 });
 
@@ -544,13 +454,11 @@ const timelineMonths = computed(() => {
   }[] = [];
   const today = new Date().toISOString().split("T")[0];
   let current = new Date(timelineStart.value);
-
   while (current <= timelineEnd.value) {
     const monthKey = `${current.getFullYear()}-${current.getMonth()}`;
     let month = months.find((m) => m.key === monthKey);
-
     if (!month) {
-      const monthNames = [
+      const names = [
         "Jan",
         "Feb",
         "Mar",
@@ -564,15 +472,9 @@ const timelineMonths = computed(() => {
         "Nov",
         "Dec",
       ];
-      const label =
-        current.getDate() <= 15
-          ? `${monthNames[current.getMonth()]}`
-          : `${monthNames[current.getMonth()]} / ${monthNames[(current.getMonth() + 1) % 12]}`;
-
-      month = { key: monthKey, label, days: [] };
+      month = { key: monthKey, label: names[current.getMonth()], days: [] };
       months.push(month);
     }
-
     const dateStr = current.toISOString().split("T")[0]!;
     month.days.push({
       num: current.getDate(),
@@ -581,7 +483,6 @@ const timelineMonths = computed(() => {
     });
     current.setDate(current.getDate() + 1);
   }
-
   return months;
 });
 
@@ -591,7 +492,6 @@ const getBarStyle = (startDate: string, endDate: string, labels: string[]) => {
   const start = new Date(startDate);
   const end = new Date(endDate);
   const tlStart = timelineStart.value;
-
   const startOffset = Math.floor(
     (start.getTime() - tlStart.getTime()) / (1000 * 60 * 60 * 24),
   );
@@ -599,7 +499,6 @@ const getBarStyle = (startDate: string, endDate: string, labels: string[]) => {
     1,
     Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)),
   );
-
   const colors = [
     "#B45309",
     "#1D4ED8",
@@ -611,7 +510,6 @@ const getBarStyle = (startDate: string, endDate: string, labels: string[]) => {
   ];
   const firstLabel = labels?.[0] ?? null;
   const colorIdx = firstLabel ? firstLabel.charCodeAt(0) % colors.length : 0;
-
   return {
     left: `${Math.max(0, startOffset * DAY_WIDTH)}px`,
     width: `${duration * DAY_WIDTH}px`,
@@ -644,25 +542,15 @@ const getTypeColor = (type: string): string => {
   return colors[type] || "#8290A4";
 };
 
-const getFirstLabel = (labels: string[]): string | null => {
-  return labels?.[0] ?? null;
-};
-
 const getLabelColor = (label: string): string => {
   const colors = ["#B45309", "#059669", "#1D4ED8", "#7C3AED", "#DC2626"];
   return colors[label.charCodeAt(0) % colors.length];
 };
+
 const toggleExpandEpic = (epicId: number): void => {
   const idx = expandedEpics.value.indexOf(epicId);
-  if (idx === -1) {
-    expandedEpics.value.push(epicId);
-  } else {
-    expandedEpics.value.splice(idx, 1);
-  }
-};
-
-const onEpicCreated = (epic: Epic): void => {
-  epics.value.push(epic);
+  if (idx === -1) expandedEpics.value.push(epicId);
+  else expandedEpics.value.splice(idx, 1);
 };
 
 const ambilBoard = async (): Promise<void> => {
@@ -679,7 +567,6 @@ const ambilEpics = async (): Promise<void> => {
   try {
     const res = await api.get<Epic[]>(`/boards/${boardId.value}/epics`);
     epics.value = res.data;
-    console.log("EPICS:", res.data);
   } catch (err) {
     console.error("Gagal ambil epics:", err);
   } finally {
@@ -687,7 +574,8 @@ const ambilEpics = async (): Promise<void> => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
+  await workflowStore.fetchStatuses();
   ambilBoard();
   ambilEpics();
 });

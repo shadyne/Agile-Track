@@ -12,10 +12,13 @@ use App\Http\Controllers\EpicDetailController;
 use App\Http\Controllers\SprintController;
 use App\Http\Controllers\BacklogController;
 use App\Http\Controllers\ItemDetailController;
+use App\Http\Controllers\WorkflowController;
 
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
+
+Route::get('/workflow/statuses', [WorkflowController::class, 'index']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -57,7 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/boards/{boardId}/backlog/items', [BacklogController::class, 'store']);
     Route::patch('/boards/{boardId}/backlog/items/{itemId}/move-to-sprint', [BacklogController::class, 'moveToSprint']);
     Route::patch('/boards/{boardId}/backlog/items/{itemId}/status', [BacklogController::class, 'updateStatus']);
-    
+
     // Item Detail (EpicItem)
     Route::get('/boards/{boardId}/items/{itemId}', [ItemDetailController::class, 'show']);
     Route::put('/boards/{boardId}/items/{itemId}', [ItemDetailController::class, 'update']);
@@ -67,4 +70,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Dashboard
     Route::get('/spaces/{spaceId}/dashboard', [DashboardController::class, 'index']);
     Route::get('/spaces/{spaceId}/recent', [RecentController::class, 'index']);
+
+    // Workflow Settings (admin manage statuses)
+    Route::post('/workflow/statuses', [WorkflowController::class, 'store']);
+    Route::put('/workflow/statuses/{id}', [WorkflowController::class, 'update']);
+    Route::delete('/workflow/statuses/{id}', [WorkflowController::class, 'destroy']);
+    Route::post('/workflow/statuses/reorder', [WorkflowController::class, 'reorder']);
 });

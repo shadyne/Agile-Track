@@ -1,887 +1,1390 @@
 <template>
   <div class="workflow-page">
-    <!-- Header -->
     <div class="workflow-header">
       <div class="workflow-header-left">
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          class="workflow-icon-svg"
-        >
-          <path
-            d="M4 4H20V8L12 13L4 8V4Z"
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <rect
+            x="2"
+            y="3"
+            width="20"
+            height="4"
+            rx="1"
+            fill="#172B4D"
+            opacity=".15"
+          />
+          <rect
+            x="2"
+            y="3"
+            width="20"
+            height="4"
+            rx="1"
             stroke="#172B4D"
             stroke-width="1.5"
-            fill="white"
           />
           <path
-            d="M4 12L12 17L20 12"
+            d="M6 7v10M18 7v10"
             stroke="#172B4D"
             stroke-width="1.5"
-            fill="none"
+            stroke-linecap="round"
           />
           <path
-            d="M4 16L12 21L20 16"
+            d="M6 17h12"
             stroke="#172B4D"
             stroke-width="1.5"
-            fill="none"
+            stroke-linecap="round"
           />
+          <circle cx="6" cy="12" r="1.5" fill="#172B4D" />
+          <circle cx="12" cy="12" r="1.5" fill="#172B4D" />
+          <circle cx="18" cy="12" r="1.5" fill="#172B4D" />
         </svg>
         <div>
-          <h1 class="workflow-title">DEV Workflow - With QA</h1>
-          <p class="workflow-subtitle">Used in 1 space</p>
+          <h1 class="workflow-title">DEV Workflow – With QA</h1>
+          <p class="workflow-subtitle">Manages all boards in your project</p>
         </div>
       </div>
       <div class="workflow-header-right">
-        <button class="btn-update">Update workflow</button>
-        <button class="btn-close">Close</button>
-        <button class="btn-more">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="2" fill="#6B778C" />
-            <circle cx="12" cy="5" r="2" fill="#6B778C" />
-            <circle cx="12" cy="19" r="2" fill="#6B778C" />
-          </svg>
+        <button class="btn-update" @click="handleSave" :disabled="saving">
+          <v-progress-circular
+            v-if="saving"
+            size="14"
+            width="2"
+            indeterminate
+            color="white"
+            class="mr-1"
+          />
+          {{ saving ? "Saving…" : "Save workflow" }}
         </button>
+        <button class="btn-close" @click="$router.back()">Close</button>
       </div>
     </div>
 
-    <!-- Action Buttons Bar -->
-    <div class="workflow-actions">
-      <button class="action-btn" @click="showAddStatus = true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path d="M12 4V20M4 12H20" stroke="#172B4D" stroke-width="1.5" />
+    <div class="workflow-actions-bar">
+      <button class="action-pill" @click="openAddModal">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M12 4V20M4 12H20"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
         </svg>
         Add status
       </button>
-      <button class="action-btn" disabled>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path d="M7 7L17 17M7 17L17 7" stroke="#C1C7D0" stroke-width="1.5" />
-          <circle cx="7" cy="7" r="2.5" stroke="#C1C7D0" stroke-width="1.5" />
-          <circle cx="17" cy="17" r="2.5" stroke="#C1C7D0" stroke-width="1.5" />
-        </svg>
-        Add Transition
-      </button>
-      <button class="action-btn" disabled>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+      <div class="action-pill disabled">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
           <path
-            d="M13 2L3 14H12L11 22L21 10H12L13 2Z"
-            stroke="#C1C7D0"
+            d="M17 3L21 7L7 21H3V17L17 3Z"
+            stroke="currentColor"
             stroke-width="1.5"
             fill="none"
           />
         </svg>
-        Add Rule
-      </button>
+        Edit transitions
+      </div>
+      <div class="action-pill-hint">Drag cards to reorder</div>
     </div>
 
-    <!-- Tabs -->
-    <div class="workflow-tabs">
-      <button class="tab active">Diagram</button>
-      <button class="tab">Text</button>
-      <div class="tab-spacer"></div>
-      <label class="show-labels">
-        <input type="checkbox" v-model="showTransitionLabels" />
-        <span>Show transition labels</span>
-      </label>
+    <!-- Loading State -->
+    <div v-if="workflowStore.loading" class="loading-state">
+      <v-progress-circular indeterminate color="#0052CC" />
+      <span>Loading statuses…</span>
     </div>
 
-    <!-- Main Content -->
-    <div class="workflow-content">
-      <div class="diagram-view">
-        <!-- Status Flow Section -->
-        <div class="status-flow-section">
-          <div class="status-flow">
-            <!-- START node -->
-            <div class="start-node">
-              <span>START</span>
-            </div>
-
-            <!-- Arrow from START -->
-            <div class="arrow-down">
-              <svg width="16" height="24" viewBox="0 0 16 24" fill="none">
-                <path
-                  d="M8 0L8 20M8 20L2 14M8 20L14 14"
-                  stroke="#DFE1E6"
-                  stroke-width="2"
-                />
+    <div v-else class="workflow-body">
+      <div class="flow-panel">
+        <div class="flow-scroll">
+          <div class="flow-start">
+            <div class="start-circle">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                <circle cx="12" cy="12" r="5" />
               </svg>
+              START
             </div>
+            <div class="connector-v"></div>
+          </div>
 
-            <!-- Status Cards -->
-            <div class="status-cards">
+          <div class="status-row" @dragover.prevent>
+            <template
+              v-for="(status, idx) in workflowStore.statuses"
+              :key="status.id ?? status.value"
+            >
               <div
-                v-for="(status, index) in statuses"
-                :key="status.value"
-                class="status-card-wrapper"
+                class="status-card"
+                :class="{
+                  dragging: dragIndex === idx,
+                  'drag-over': dropIndex === idx && dragIndex !== idx,
+                }"
+                draggable="true"
+                @dragstart="onDragStart(idx)"
+                @dragover.prevent="onDragOver(idx)"
+                @drop="onDrop(idx)"
+                @dragend="onDragEnd"
+                @click="openEditModal(status)"
               >
-                <div class="status-card">
-                  <div
-                    class="status-badge"
-                    :style="{ backgroundColor: status.color }"
-                  >
-                    Any
-                  </div>
-                  <div class="status-name" :style="{ color: status.textColor }">
-                    {{ status.label.toUpperCase() }}
-                  </div>
-                  <div class="status-actions">
-                    <button
-                      class="status-edit"
-                      @click.stop="editStatus(status)"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <path
-                          d="M17 3L21 7L7 21H3V17L17 3Z"
-                          stroke="#6B778C"
-                          stroke-width="1.5"
-                          fill="none"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      class="status-delete"
-                      @click.stop="removeStatus(status.value)"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <path
-                          d="M4 7H20M10 11V16M14 11V16M5 7L6 19C6 20.1 6.9 21 8 21H16C17.1 21 18 20.1 18 19L19 7"
-                          stroke="#6B778C"
-                          stroke-width="1.5"
-                        />
-                      </svg>
-                    </button>
-                  </div>
+                <div
+                  class="card-top-badge"
+                  :style="{ backgroundColor: status.color }"
+                >
+                  {{ status.category }}
                 </div>
-                <div v-if="index < statuses.length - 1" class="arrow-right">
-                  <svg width="24" height="16" viewBox="0 0 24 16" fill="none">
-                    <path
-                      d="M0 8H20M20 8L14 2M20 8L14 14"
-                      stroke="#DFE1E6"
-                      stroke-width="2"
-                    />
+                <div class="card-handle">
+                  <svg width="10" height="16" viewBox="0 0 10 16" fill="none">
+                    <circle cx="3" cy="3" r="1.5" fill="#BCC0C9" />
+                    <circle cx="7" cy="3" r="1.5" fill="#BCC0C9" />
+                    <circle cx="3" cy="8" r="1.5" fill="#BCC0C9" />
+                    <circle cx="7" cy="8" r="1.5" fill="#BCC0C9" />
+                    <circle cx="3" cy="13" r="1.5" fill="#BCC0C9" />
+                    <circle cx="7" cy="13" r="1.5" fill="#BCC0C9" />
                   </svg>
                 </div>
+                <div
+                  class="card-color-strip"
+                  :style="{ backgroundColor: status.color }"
+                ></div>
+                <div class="card-label" :style="{ color: status.color }">
+                  {{ status.label.toUpperCase() }}
+                </div>
+                <div class="card-desc">
+                  {{ status.description || status.category }}
+                </div>
+                <div class="card-actions">
+                  <button
+                    class="card-btn edit-btn"
+                    @click.stop="openEditModal(status)"
+                    title="Edit"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M17 3L21 7L7 21H3V17L17 3Z"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        fill="none"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    class="card-btn delete-btn"
+                    :class="{ 'btn-disabled': status.is_default }"
+                    @click.stop="confirmDelete(status)"
+                    :title="
+                      status.is_default
+                        ? 'Default status cannot be deleted'
+                        : 'Delete'
+                    "
+                    :disabled="status.is_default"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M4 7H20M10 11V16M14 11V16M5 7L6 19C6 20.1 6.9 21 8 21H16C17.1 21 18 20.1 18 19L19 7"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div
+                v-if="idx < workflowStore.statuses.length - 1"
+                class="connector-h"
+              >
+                <svg width="36" height="16" viewBox="0 0 36 16" fill="none">
+                  <path d="M0 8H30" stroke="#CBD5E1" stroke-width="1.5" />
+                  <path
+                    d="M26 4L32 8L26 12"
+                    stroke="#CBD5E1"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    fill="none"
+                  />
+                </svg>
+              </div>
+            </template>
+
+            <button class="add-status-card" @click="openAddModal">
+              <div class="add-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M12 4V20M4 12H20"
+                    stroke="#0052CC"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </div>
+              <span>Add status</span>
+            </button>
+          </div>
+
+          <div class="flow-end">
+            <div class="connector-v"></div>
+            <div class="end-circle">END</div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <div v-for="cat in categories" :key="cat.label" class="legend-item">
+            <div
+              class="legend-dot"
+              :style="{ backgroundColor: cat.color }"
+            ></div>
+            <span>{{ cat.label }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-sidebar">
+        <div class="info-icon-wrap">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="20" fill="#E8F0FE" />
+            <path
+              d="M16 24h16M24 16l8 8-8 8"
+              stroke="#0052CC"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              fill="none"
+            />
+          </svg>
+        </div>
+        <h3 class="info-title">Workflow statuses</h3>
+        <p class="info-text">
+          Each status represents a stage in your team's process. Items in the
+          <strong>Timeline</strong> and <strong>Backlog</strong> use these
+          statuses as their progress states.
+        </p>
+        <p class="info-text">
+          <strong>Add</strong> new statuses to reflect custom steps,
+          <strong>edit</strong> labels and colors, or <strong>drag</strong> to
+          reorder.
+        </p>
+        <p class="info-text">
+          Default statuses (<em>To Do, In Progress</em> etc.) cannot be deleted.
+        </p>
+
+        <!-- Status count by category -->
+        <div class="info-counts">
+          <div
+            v-for="cat in categorySummary"
+            :key="cat.category"
+            class="count-row"
+          >
+            <div
+              class="count-badge"
+              :style="{ backgroundColor: cat.color + '20', color: cat.color }"
+            >
+              {{ cat.count }}
+            </div>
+            <span>{{ cat.category }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <Transition name="modal">
+      <div v-if="showModal" class="modal-backdrop" @click.self="closeModal">
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3>{{ editingStatus ? "Edit status" : "Add new status" }}</h3>
+            <button class="modal-close-btn" @click="closeModal">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M18 6L6 18M6 6l12 12"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div class="modal-body">
+            <div class="form-field">
+              <label>Status name <span class="req">*</span></label>
+              <input
+                v-model="form.label"
+                type="text"
+                placeholder="e.g. In Review"
+                :class="{ 'input-error': formErrors.label }"
+                @input="formErrors.label = ''"
+              />
+              <span v-if="formErrors.label" class="field-error">{{
+                formErrors.label
+              }}</span>
+            </div>
+
+            <div class="form-field">
+              <label>Category</label>
+              <div class="category-pills">
+                <button
+                  v-for="cat in categoryOptions"
+                  :key="cat"
+                  class="cat-pill"
+                  :class="{ active: form.category === cat }"
+                  @click="form.category = cat"
+                  type="button"
+                >
+                  {{ cat }}
+                </button>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Info Panel -->
-        <div class="info-panel">
-          <div class="info-graphic">
-            <svg width="120" height="40" viewBox="0 0 120 40" fill="none">
-              <circle cx="20" cy="20" r="8" fill="#0052CC" />
-              <circle cx="45" cy="20" r="6" fill="#6554C0" />
-              <circle cx="70" cy="20" r="4" fill="#172B4D" />
-              <circle cx="90" cy="20" r="6" fill="#8777D9" />
-              <circle cx="110" cy="20" r="8" fill="#2684FF" />
-            </svg>
+            <div class="form-field">
+              <label>Color</label>
+              <div class="color-grid">
+                <button
+                  v-for="c in colorPalette"
+                  :key="c"
+                  class="color-swatch"
+                  :style="{ backgroundColor: c }"
+                  :class="{ 'color-selected': form.color === c }"
+                  @click="form.color = c"
+                  type="button"
+                >
+                  <svg
+                    v-if="form.color === c"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <path
+                      d="M5 13l4 4L19 7"
+                      stroke="white"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div class="custom-color-row">
+                <input
+                  type="color"
+                  v-model="form.color"
+                  class="color-native-input"
+                />
+                <input
+                  type="text"
+                  v-model="form.color"
+                  class="color-text-input"
+                  placeholder="#000000"
+                />
+              </div>
+            </div>
+
+            <div class="form-field">
+              <label
+                >Description <span class="optional">(optional)</span></label
+              >
+              <input
+                v-model="form.description"
+                type="text"
+                placeholder="Short description of this status"
+              />
+            </div>
+
+            <div class="status-preview">
+              <span>Preview:</span>
+              <span
+                class="preview-badge"
+                :style="{
+                  backgroundColor: form.color + '20',
+                  color: form.color,
+                }"
+              >
+                {{ form.label || "Status name" }}
+              </span>
+            </div>
           </div>
-          <h3 class="info-title">Make work flow your way</h3>
-          <p class="info-text">
-            Workflows represent your team's process and control how people
-            progress your project's work.
-          </p>
-          <p class="info-text">
-            Here, you can add statuses, which appear as drop zones for the cards
-            on your project's board. You can create pathways between statuses
-            called transitions, and automate repetitive actions using rules.
-          </p>
-          <p class="info-text">Select a status to reveal more details.</p>
-          <a href="#" class="info-link" @click.prevent>Learn more</a>
-          <div class="feedback-link">
-            <a href="#" @click.prevent>Give feedback</a>
+
+          <div class="modal-footer">
+            <button class="btn-cancel" @click="closeModal">Cancel</button>
+            <button
+              class="btn-confirm"
+              @click="submitForm"
+              :disabled="modalLoading"
+            >
+              <v-progress-circular
+                v-if="modalLoading"
+                size="14"
+                width="2"
+                indeterminate
+                color="white"
+                class="mr-1"
+              />
+              {{ editingStatus ? "Update" : "Add status" }}
+            </button>
           </div>
         </div>
       </div>
-    </div>
+    </Transition>
 
-    <!-- Add/Edit Status Modal -->
-    <div
-      v-if="showAddStatus"
-      class="modal-overlay"
-      @click.self="cancelAddStatus"
-    >
-      <div class="modal-content">
-        <h3 class="modal-title">
-          {{ editingStatus ? "Edit status" : "Add status" }}
-        </h3>
-
-        <div class="modal-field">
-          <label>Status name <span class="required">*</span></label>
-          <input
-            type="text"
-            v-model="newStatus.label"
-            placeholder="e.g. In Review"
-            :class="{ error: newStatusError }"
-          />
-          <span v-if="newStatusError" class="error-message">{{
-            newStatusError
-          }}</span>
-        </div>
-
-        <div class="modal-field">
-          <label>Category</label>
-          <select v-model="newStatus.category">
-            <option v-for="cat in categoryOptions" :key="cat" :value="cat">
-              {{ cat }}
-            </option>
-          </select>
-        </div>
-
-        <div class="modal-field">
-          <label>Color</label>
-          <div class="color-picker">
-            <div
-              v-for="color in colorOptions"
-              :key="color.value"
-              class="color-swatch"
-              :style="{ backgroundColor: color.value }"
-              :class="{ selected: newStatus.color === color.value }"
-              @click="newStatus.color = color.value"
-            ></div>
+    <Transition name="modal">
+      <div
+        v-if="showDeleteConfirm"
+        class="modal-backdrop"
+        @click.self="showDeleteConfirm = false"
+      >
+        <div class="modal-box modal-sm">
+          <div class="modal-header">
+            <h3>Delete status</h3>
+          </div>
+          <div class="modal-body">
+            <p>
+              Are you sure you want to delete
+              <strong>{{ deletingStatus?.label }}</strong
+              >?
+            </p>
+            <p class="delete-warning">
+              All items currently in this status must be moved first.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel" @click="showDeleteConfirm = false">
+              Cancel
+            </button>
+            <button
+              class="btn-danger"
+              @click="executeDelete"
+              :disabled="deleteLoading"
+            >
+              <v-progress-circular
+                v-if="deleteLoading"
+                size="14"
+                width="2"
+                indeterminate
+                color="white"
+                class="mr-1"
+              />
+              Delete
+            </button>
           </div>
         </div>
-
-        <div class="modal-field">
-          <label>Description</label>
-          <input
-            type="text"
-            v-model="newStatus.description"
-            placeholder="Optional description"
-          />
-        </div>
-
-        <div class="modal-actions">
-          <button class="modal-cancel" @click="cancelAddStatus">Cancel</button>
-          <button class="modal-confirm" @click="confirmAddStatus">
-            {{ editingStatus ? "Update" : "Add" }}
-          </button>
-        </div>
       </div>
-    </div>
+    </Transition>
+
+    <Transition name="toast">
+      <div v-if="toast.show" class="toast" :class="toast.type">
+        <svg
+          v-if="toast.type === 'success'"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <path
+            d="M5 13l4 4L19 7"
+            stroke="white"
+            stroke-width="2.5"
+            stroke-linecap="round"
+          />
+        </svg>
+        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M18 6L6 18M6 6l12 12"
+            stroke="white"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </svg>
+        {{ toast.message }}
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
+import { useWorkflowStore, type WorkflowStatus } from "../stores/workflow";
 
-interface WorkflowStatus {
-  value: string;
-  label: string;
-  color: string;
-  textColor: string;
-  category: string;
-  description?: string;
-}
+const workflowStore = useWorkflowStore();
 
-const showTransitionLabels = ref(false);
-const showAddStatus = ref(false);
+const saving = ref(false);
+const showModal = ref(false);
+const modalLoading = ref(false);
 const editingStatus = ref<WorkflowStatus | null>(null);
-const newStatusError = ref("");
+const showDeleteConfirm = ref(false);
+const deletingStatus = ref<WorkflowStatus | null>(null);
+const deleteLoading = ref(false);
+const dragIndex = ref<number | null>(null);
+const dropIndex = ref<number | null>(null);
 
-const statuses = ref<WorkflowStatus[]>([
-  {
-    value: "to_do",
-    label: "To Do",
-    color: "#6B778C",
-    textColor: "#42526E",
-    category: "To Do",
-    description: "Work not yet started",
-  },
-  {
-    value: "in_progress",
-    label: "In Progress",
-    color: "#0052CC",
-    textColor: "#0052CC",
-    category: "In Progress",
-    description: "Work actively being done",
-  },
-  {
-    value: "done_by_dev",
-    label: "Done by Dev",
-    color: "#00875A",
-    textColor: "#00875A",
-    category: "Done",
-    description: "Dev completed, pending QA",
-  },
-  {
-    value: "testing",
-    label: "Testing",
-    color: "#FF991F",
-    textColor: "#FF991F",
-    category: "In Progress",
-    description: "Under QA testing",
-  },
-  {
-    value: "done_by_qa",
-    label: "Done by QA",
-    color: "#36B37E",
-    textColor: "#36B37E",
-    category: "Done",
-    description: "Fully completed and verified",
-  },
-]);
+const toast = reactive({
+  show: false,
+  message: "",
+  type: "success" as "success" | "error",
+});
 
-const newStatus = reactive({
+const form = reactive({
   label: "",
   category: "To Do",
-  color: "#6B778C",
+  color: "#6B7280",
   description: "",
 });
+const formErrors = reactive({ label: "" });
 
 const categoryOptions = ["To Do", "In Progress", "Done"];
 
-const colorOptions = [
-  { value: "#6B778C" },
-  { value: "#0052CC" },
-  { value: "#00875A" },
-  { value: "#FF991F" },
-  { value: "#36B37E" },
-  { value: "#DE350B" },
-  { value: "#6554C0" },
-  { value: "#00B8D9" },
-  { value: "#FF8B00" },
-  { value: "#E56910" },
+const colorPalette = [
+  "#6B7280",
+  "#374151",
+  "#111827",
+  "#2563EB",
+  "#1D4ED8",
+  "#0891B2",
+  "#059669",
+  "#16A34A",
+  "#15803D",
+  "#D97706",
+  "#EA580C",
+  "#DC2626",
+  "#7C3AED",
+  "#DB2777",
+  "#9333EA",
+  "#0284C7",
+  "#0369A1",
+  "#065F46",
 ];
 
-const editStatus = (status: WorkflowStatus) => {
-  editingStatus.value = status;
-  newStatus.label = status.label;
-  newStatus.category = status.category;
-  newStatus.color = status.color;
-  newStatus.description = status.description || "";
-  showAddStatus.value = true;
-};
+const categories = [
+  { label: "To Do", color: "#6B7280" },
+  { label: "In Progress", color: "#2563EB" },
+  { label: "Done", color: "#16A34A" },
+];
 
-const removeStatus = (value: string) => {
-  statuses.value = statuses.value.filter((s) => s.value !== value);
-};
+const categorySummary = computed(() =>
+  categories.map((cat) => ({
+    ...cat,
+    count: workflowStore.statuses.filter((s) => s.category === cat.label)
+      .length,
+  })),
+);
 
-const cancelAddStatus = () => {
-  showAddStatus.value = false;
+const openAddModal = () => {
   editingStatus.value = null;
-  newStatus.label = "";
-  newStatus.category = "To Do";
-  newStatus.color = "#6B778C";
-  newStatus.description = "";
-  newStatusError.value = "";
+  form.label = "";
+  form.category = "To Do";
+  form.color = "#6B7280";
+  form.description = "";
+  formErrors.label = "";
+  showModal.value = true;
 };
 
-const confirmAddStatus = () => {
-  newStatusError.value = "";
-  if (!newStatus.label.trim()) {
-    newStatusError.value = "Status name is required";
+const openEditModal = (status: WorkflowStatus) => {
+  editingStatus.value = status;
+  form.label = status.label;
+  form.category = status.category;
+  form.color = status.color;
+  form.description = status.description ?? "";
+  formErrors.label = "";
+  showModal.value = true;
+};
+
+const closeModal = () => {
+  showModal.value = false;
+  editingStatus.value = null;
+};
+
+const submitForm = async () => {
+  formErrors.label = "";
+  if (!form.label.trim()) {
+    formErrors.label = "Status name is required";
     return;
   }
 
-  if (editingStatus.value) {
-    const idx = statuses.value.findIndex(
-      (s) => s.value === editingStatus.value!.value,
-    );
-    if (idx !== -1) {
-      statuses.value[idx] = {
-        ...statuses.value[idx],
-        label: newStatus.label,
-        category: newStatus.category,
-        color: newStatus.color,
-        textColor: newStatus.color,
-        description: newStatus.description,
-      };
-    }
-  } else {
-    const value = newStatus.label
-      .toLowerCase()
-      .replace(/\s+/g, "_")
-      .replace(/[^a-z0-9_]/g, "");
-    if (statuses.value.find((s) => s.value === value)) {
-      newStatusError.value = "Status with this name already exists";
-      return;
-    }
-    statuses.value.push({
-      value,
-      label: newStatus.label,
-      color: newStatus.color,
-      textColor: newStatus.color,
-      category: newStatus.category,
-      description: newStatus.description,
-    });
-  }
+  modalLoading.value = true;
+  try {
+    const bgColor = form.color + "20";
+    const payload = {
+      label: form.label.trim(),
+      color: form.color,
+      text_color: form.color,
+      bg_color: bgColor,
+      category: form.category,
+      description: form.description,
+    };
 
-  cancelAddStatus();
+    if (editingStatus.value?.id) {
+      await workflowStore.updateStatus(editingStatus.value.id, payload);
+      showToast("Status updated successfully");
+    } else {
+      await workflowStore.createStatus(payload);
+      showToast("Status added successfully");
+    }
+    closeModal();
+  } catch (err: any) {
+    const msg = err?.response?.data?.message ?? "Failed to save status";
+    showToast(msg, "error");
+  } finally {
+    modalLoading.value = false;
+  }
 };
+
+const confirmDelete = (status: WorkflowStatus) => {
+  if (status.is_default) return;
+  deletingStatus.value = status;
+  showDeleteConfirm.value = true;
+};
+
+const executeDelete = async () => {
+  if (!deletingStatus.value?.id) return;
+  deleteLoading.value = true;
+  try {
+    await workflowStore.deleteStatus(deletingStatus.value.id);
+    showDeleteConfirm.value = false;
+    showToast("Status deleted");
+  } catch (err: any) {
+    const msg = err?.response?.data?.message ?? "Failed to delete status";
+    showToast(msg, "error");
+  } finally {
+    deleteLoading.value = false;
+    deletingStatus.value = null;
+  }
+};
+
+const onDragStart = (idx: number) => {
+  dragIndex.value = idx;
+};
+const onDragOver = (idx: number) => {
+  dropIndex.value = idx;
+};
+const onDragEnd = () => {
+  dragIndex.value = null;
+  dropIndex.value = null;
+};
+
+const onDrop = async (targetIdx: number) => {
+  if (dragIndex.value === null || dragIndex.value === targetIdx) return;
+
+  const arr = [...workflowStore.statuses];
+  const [moved] = arr.splice(dragIndex.value, 1);
+  arr.splice(targetIdx, 0, moved);
+  workflowStore.statuses.value = arr;
+
+  dragIndex.value = null;
+  dropIndex.value = null;
+
+  const ids = arr.map((s) => s.id).filter(Boolean) as number[];
+  if (ids.length === arr.length) {
+    try {
+      await workflowStore.reorderStatuses(ids);
+    } catch {
+      await workflowStore.refetch();
+    }
+  }
+};
+
+const handleSave = async () => {
+  saving.value = true;
+  try {
+    await workflowStore.refetch();
+    showToast("Workflow saved");
+  } catch {
+    showToast("Error refreshing workflow", "error");
+  } finally {
+    saving.value = false;
+  }
+};
+
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+const showToast = (message: string, type: "success" | "error" = "success") => {
+  if (toastTimer) clearTimeout(toastTimer);
+  toast.message = message;
+  toast.type = type;
+  toast.show = true;
+  toastTimer = setTimeout(() => {
+    toast.show = false;
+  }, 3000);
+};
+
+onMounted(() => {
+  workflowStore.fetchStatuses();
+});
 </script>
 
 <style scoped>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
 .workflow-page {
-  background: white;
   display: flex;
   flex-direction: column;
   height: 100vh;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+  background: #f8f9fc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: hidden;
 }
 
-/* Header */
 .workflow-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #ebecf0;
+  justify-content: space-between;
+  padding: 16px 28px;
   background: white;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
 }
-
 .workflow-header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
-
-.workflow-icon-svg {
-  width: 24px;
-  height: 24px;
-}
-
 .workflow-title {
-  font-size: 20px;
-  font-weight: 500;
+  font-size: 18px;
+  font-weight: 700;
   color: #172b4d;
-  margin-bottom: 4px;
 }
-
 .workflow-subtitle {
   font-size: 12px;
-  color: #6b778c;
+  color: #64748b;
+  margin-top: 2px;
 }
-
 .workflow-header-right {
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 10px;
 }
-
 .btn-update {
-  padding: 8px 12px;
-  border: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
   background: #0052cc;
   color: white;
-  font-size: 14px;
-  font-weight: 500;
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.btn-close {
-  padding: 8px 12px;
   border: none;
-  background: transparent;
-  color: #42526e;
+  border-radius: 6px;
   font-size: 14px;
-  font-weight: 500;
-  border-radius: 3px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s;
 }
-
-.btn-more {
-  padding: 8px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.btn-update:hover {
+  background: #0747a6;
 }
-
-/* Action Buttons */
-.workflow-actions {
-  display: flex;
-  gap: 8px;
-  padding: 12px 24px;
-  border-bottom: 1px solid #ebecf0;
-  background: white;
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: none;
-  border: none;
-  font-size: 14px;
-  font-weight: 500;
-  color: #172b4d;
-  cursor: pointer;
-  border-radius: 3px;
-}
-
-.action-btn:disabled {
-  color: #c1c7d0;
+.btn-update:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
-
-/* Tabs */
-.workflow-tabs {
-  display: flex;
-  align-items: center;
-  padding: 0 24px;
-  border-bottom: 1px solid #ebecf0;
-  background: white;
-}
-
-.tab {
-  padding: 12px 16px;
+.btn-close {
+  padding: 8px 14px;
   background: none;
-  border: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
   font-size: 14px;
-  font-weight: 500;
-  color: #6b778c;
+  color: #475569;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
+}
+.btn-close:hover {
+  background: #f1f5f9;
 }
 
-.tab.active {
-  color: #0052cc;
-  border-bottom-color: #0052cc;
-}
-
-.tab-spacer {
-  flex: 1;
-}
-
-.show-labels {
+.workflow-actions-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: #42526e;
-  cursor: pointer;
-}
-
-.show-labels input {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  margin: 0;
-}
-
-/* Content */
-.workflow-content {
-  flex: 1;
-  overflow: auto;
+  padding: 10px 28px;
   background: white;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
 }
-
-.diagram-view {
+.action-pill {
   display: flex;
-  height: 100%;
-  min-height: 500px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid #0052cc;
+  border-radius: 20px;
+  background: #eff6ff;
+  color: #0052cc;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.action-pill:hover {
+  background: #dbeafe;
+}
+.action-pill.disabled {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+.action-pill-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-left: auto;
 }
 
-/* Status Flow Section */
-.status-flow-section {
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   flex: 1;
-  padding: 32px 40px;
-  overflow-x: auto;
+  gap: 16px;
+  color: #64748b;
 }
 
-.status-flow {
+.workflow-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.flow-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 32px 36px;
+  overflow: auto;
+  gap: 20px;
+}
+.flow-scroll {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
 }
 
-.start-node {
-  width: 64px;
-  height: 64px;
+.flow-start,
+.flow-end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-left: 76px;
+}
+.start-circle,
+.end-circle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
   background: #172b4d;
   color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+.end-circle {
+  background: #64748b;
+}
+.connector-v {
+  width: 2px;
+  height: 20px;
+  background: #cbd5e1;
+  margin-left: 56px;
 }
 
-.arrow-down {
-  margin-left: 24px;
-  margin-top: 4px;
-  margin-bottom: 4px;
-}
-
-.status-cards {
+.status-row {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 0;
-  flex-wrap: wrap;
+  padding: 8px 0;
+  overflow-x: auto;
 }
-
-.status-card-wrapper {
-  display: flex;
-  align-items: center;
+.connector-h {
+  flex-shrink: 0;
+  padding: 0 4px;
 }
 
 .status-card {
   position: relative;
-  width: 160px;
-  padding: 20px 12px 12px;
-  border: 2px solid #dfe1e6;
-  border-radius: 8px;
+  flex-shrink: 0;
+  width: 156px;
+  padding: 28px 14px 14px;
   background: white;
-  cursor: pointer;
-  margin: 16px 0;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: grab;
+  transition: all 0.15s;
+  user-select: none;
 }
-
 .status-card:hover {
-  background: #fafbfd;
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgba(0, 82, 204, 0.12);
+}
+.status-card.dragging {
+  opacity: 0.5;
+  transform: scale(0.97);
+  cursor: grabbing;
+}
+.status-card.drag-over {
+  border-color: #0052cc;
+  border-style: dashed;
 }
 
-.status-badge {
+.card-top-badge {
   position: absolute;
-  top: -10px;
+  top: -11px;
   left: 12px;
-  padding: 2px 8px;
-  background: #6b778c;
+  padding: 2px 10px;
   color: white;
   font-size: 10px;
-  font-weight: 600;
-  border-radius: 12px;
+  font-weight: 700;
+  border-radius: 10px;
+  letter-spacing: 0.3px;
 }
-
-.status-name {
-  font-size: 14px;
-  font-weight: 600;
+.card-handle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  cursor: grab;
+  opacity: 0.4;
+}
+.status-card:hover .card-handle {
+  opacity: 0.8;
+}
+.card-color-strip {
+  height: 4px;
+  border-radius: 3px;
+  margin-bottom: 10px;
+}
+.card-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
   text-align: center;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
-
-.status-actions {
+.card-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 10px;
+}
+.card-actions {
   display: flex;
   justify-content: center;
-  gap: 12px;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
 }
-
-.status-edit,
-.status-delete {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
+.status-card:hover .card-actions {
+  opacity: 1;
+}
+.card-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
-  opacity: 0;
-  transition: opacity 0.2s;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.edit-btn {
+  background: #eff6ff;
+  color: #0052cc;
+}
+.edit-btn:hover {
+  background: #dbeafe;
+}
+.delete-btn {
+  background: #fff0f0;
+  color: #dc2626;
+}
+.delete-btn:hover {
+  background: #fee2e2;
+}
+.btn-disabled {
+  opacity: 0.35;
+  cursor: not-allowed !important;
 }
 
-.status-card:hover .status-edit,
-.status-card:hover .status-delete {
+.add-status-card {
+  flex-shrink: 0;
+  width: 120px;
+  padding: 20px 12px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+  margin-left: 8px;
+}
+.add-status-card:hover {
+  border-color: #0052cc;
+  color: #0052cc;
+  background: #eff6ff;
+}
+.add-icon {
+  opacity: 0.7;
+}
+.add-status-card:hover .add-icon {
   opacity: 1;
 }
 
-.status-edit:hover,
-.status-delete:hover {
-  background: #ebecf0;
+.legend {
+  display: flex;
+  gap: 20px;
+  padding: 12px 0;
+  border-top: 1px solid #e2e8f0;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #64748b;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
 
-.arrow-right {
-  margin: 0 8px;
-}
-
-/* Info Panel */
-.info-panel {
-  width: 320px;
-  border-left: 1px solid #ebecf0;
+.info-sidebar {
+  width: 300px;
+  border-left: 1px solid #e2e8f0;
   padding: 32px 24px;
-  background: #fafbfd;
+  background: white;
+  overflow-y: auto;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-
-.info-graphic {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 8px;
+.info-icon-wrap {
+  text-align: center;
 }
-
 .info-title {
-  font-size: 20px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 700;
   color: #172b4d;
   text-align: center;
 }
-
 .info-text {
-  font-size: 14px;
-  color: #6b778c;
-  line-height: 1.5;
-  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #64748b;
 }
-
-.info-link {
-  font-size: 14px;
-  font-weight: 500;
-  color: #0052cc;
-  text-align: center;
-  text-decoration: none;
-}
-
-.feedback-link {
+.info-counts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 8px;
-  text-align: center;
 }
-
-.feedback-link a {
-  font-size: 12px;
-  color: #6b778c;
-  text-decoration: none;
+.count-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #475569;
 }
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(9, 30, 66, 0.54);
+.count-badge {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.modal-content {
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 30, 66, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.modal-box {
   background: white;
-  border-radius: 3px;
+  border-radius: 10px;
   width: 480px;
-  max-width: 90%;
-  padding: 24px;
+  max-width: 94vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
 }
-
-.modal-title {
-  font-size: 20px;
-  font-weight: 500;
+.modal-sm {
+  width: 380px;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.modal-header h3 {
+  font-size: 16px;
+  font-weight: 700;
   color: #172b4d;
-  margin-bottom: 20px;
+}
+.modal-close-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 6px;
+  color: #94a3b8;
+}
+.modal-close-btn:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+.modal-body {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
-.modal-field {
-  margin-bottom: 20px;
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
-
-.modal-field label {
-  display: block;
+.form-field label {
   font-size: 12px;
   font-weight: 600;
-  color: #172b4d;
-  margin-bottom: 8px;
+  color: #334155;
+}
+.req {
+  color: #dc2626;
+}
+.optional {
+  color: #94a3b8;
+  font-weight: 400;
 }
 
-.required {
-  color: #de350b;
-}
-
-.modal-field input,
-.modal-field select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 2px solid #dfe1e6;
-  border-radius: 3px;
+.form-field input,
+.form-field select {
+  padding: 9px 12px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.15s;
+}
+.form-field input:focus {
+  border-color: #0052cc;
+}
+.input-error {
+  border-color: #dc2626 !important;
+}
+.field-error {
+  font-size: 11px;
+  color: #dc2626;
 }
 
-.modal-field input:focus,
-.modal-field select:focus {
-  border-color: #4c9aff;
-}
-
-.modal-field input.error {
-  border-color: #de350b;
-}
-
-.error-message {
-  display: block;
-  font-size: 12px;
-  color: #de350b;
-  margin-top: 4px;
-}
-
-.color-picker {
+.category-pills {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+}
+.cat-pill {
+  flex: 1;
+  padding: 8px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  background: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.12s;
+}
+.cat-pill.active {
+  border-color: #0052cc;
+  background: #eff6ff;
+  color: #0052cc;
+}
+.cat-pill:hover:not(.active) {
+  border-color: #94a3b8;
 }
 
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 6px;
+}
 .color-swatch {
-  width: 32px;
-  height: 32px;
-  border-radius: 3px;
-  cursor: pointer;
+  aspect-ratio: 1;
+  border-radius: 5px;
   border: 2px solid transparent;
-}
-
-.color-swatch.selected {
-  border-color: #172b4d;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 24px;
-  justify-content: flex-end;
-}
-
-.modal-cancel,
-.modal-confirm {
-  padding: 8px 16px;
-  border-radius: 3px;
-  font-size: 14px;
-  font-weight: 500;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s;
+}
+.color-swatch:hover {
+  transform: scale(1.15);
+}
+.color-selected {
+  border-color: #172b4d !important;
+  transform: scale(1.1);
+}
+
+.custom-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.color-native-input {
+  width: 36px;
+  height: 36px;
   border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 2px;
+}
+.color-text-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: monospace;
+  outline: none;
+}
+.color-text-input:focus {
+  border-color: #0052cc;
 }
 
-.modal-cancel {
-  background: transparent;
-  color: #42526e;
+.status-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+.preview-badge {
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
-.modal-confirm {
+.btn-cancel {
+  padding: 8px 18px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: none;
+  color: #475569;
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-cancel:hover {
+  background: #f1f5f9;
+}
+.btn-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
   background: #0052cc;
   color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-confirm:hover {
+  background: #0747a6;
+}
+.btn-confirm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-danger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  background: #dc2626;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-danger:hover {
+  background: #b91c1c;
+}
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.modal-cancel:hover {
-  background: #ebecf0;
+.delete-warning {
+  font-size: 12px;
+  color: #d97706;
+  margin-top: 6px;
 }
 
-.modal-confirm:hover {
-  background: #0065ff;
+.toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  color: white;
+}
+.toast.success {
+  background: #16a34a;
+}
+.toast.error {
+  background: #dc2626;
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: all 0.2s ease;
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(12px);
 }
 </style>

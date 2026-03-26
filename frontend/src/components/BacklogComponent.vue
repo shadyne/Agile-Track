@@ -586,7 +586,6 @@ onMounted(ambilData);
   margin-bottom: 8px;
   border: 1px solid rgba(130, 144, 164, 0.2);
   border-radius: 8px;
-  overflow: hidden;
 }
 
 .section-header {
