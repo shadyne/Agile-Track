@@ -352,7 +352,10 @@ const boardMembers = computed(() => {
     name: email.split("@")[0],
     email,
   }));
+  return list;
 });
+
+console.log("member", boardMembers);
 
 const toggleUserFilter = (userId: number) => {
   filterUserId.value = filterUserId.value === userId ? null : userId;

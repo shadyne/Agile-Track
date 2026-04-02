@@ -3,103 +3,78 @@
 namespace App\Http\Controllers;
 
 use App\Models\Space;
+use App\Models\Epic;
+use App\Models\EpicItem;
+use App\Models\WorkflowStatus;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
-use App\Models\Epic;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+
     public function global(Request $request)
-{
-    $tasks = Epic::whereHas('board.space', function ($q) use ($request) {
-        $q->where('user_id', $request->user()->id);
-    });
-
-    $sevenDaysAgo = Carbon::now()->subDays(7);
-    $sevenDaysNext = Carbon::now()->addDays(7);
-
-    $summary = [
-        'completed' => (clone $tasks)
-            ->where('status', 'done_by_qa')
-            ->where('updated_at', '>=', $sevenDaysAgo)
-            ->count(),
-
-        'updated' => (clone $tasks)
-            ->where('updated_at', '>=', $sevenDaysAgo)
-            ->count(),
-
-        'created' => (clone $tasks)
-            ->where('created_at', '>=', $sevenDaysAgo)
-            ->count(),
-
-        'due_soon' => (clone $tasks)
-            ->whereNotNull('end_date')
-            ->whereBetween('end_date', [Carbon::now(), $sevenDaysNext])
-            ->count(),
-    ];
-
-    $priorityBreakdown = (clone $tasks)
-        ->selectRaw('priority, count(*) as total')
-        ->groupBy('priority')
-        ->pluck('total', 'priority');
-
-    $priorities = ['highest', 'high', 'medium', 'low', 'lowest'];
-    $priorityData = [];
-    foreach ($priorities as $p) {
-        $priorityData[$p] = $priorityBreakdown[$p] ?? 0;
-    }
-
-    $statusBreakdown = (clone $tasks)
-        ->selectRaw('status, count(*) as total')
-        ->groupBy('status')
-        ->pluck('total', 'status');
-
-    $statuses = ['to_do', 'in_progress', 'done_by_dev', 'testing', 'done_by_qa'];
-    $statusData = [];
-    foreach ($statuses as $s) {
-        $statusData[$s] = $statusBreakdown[$s] ?? 0;
-    }
-
-    return response()->json([
-        'summary' => $summary,
-        'priority_breakdown' => $priorityData,
-        'status_overview' => $statusData,
-    ]);
-}
-
-    public function index(Request $request, $spaceId)
     {
-        $space = Space::where('id', $spaceId)
-            ->where('user_id', $request->user()->id)
-            ->firstOrFail();
-
-        $tasks = Epic::whereHas('board.space', function ($q) use ($spaceId) {
-            $q->where('id', $spaceId);
+        $epics = Epic::whereHas('board.space', function ($q) use ($request) {
+            $q->where('user_id', $request->user()->id);
         });
+
+        $epicItems = EpicItem::whereHas('board.space', function ($q) use ($request) {
+            $q->where('user_id', $request->user()->id);
+        });
+
         $sevenDaysAgo = Carbon::now()->subDays(7);
         $sevenDaysNext = Carbon::now()->addDays(7);
 
+        $completedEpics = (clone $epics)
+            ->where('status', 'done_by_qa')
+            ->where('updated_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $completedItems = (clone $epicItems)
+            ->where('status', 'done_by_qa')
+            ->where('updated_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $updatedEpics = (clone $epics)
+            ->where('updated_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $updatedItems = (clone $epicItems)
+            ->where('updated_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $createdEpics = (clone $epics)
+            ->where('created_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $createdItems = (clone $epicItems)
+            ->where('created_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $dueSoonEpics = (clone $epics)
+            ->whereNotNull('end_date')
+            ->whereBetween('end_date', [Carbon::now(), $sevenDaysNext])
+            ->count();
+
+        $dueSoonItems = (clone $epicItems)
+            ->whereNotNull('end_date')
+            ->whereBetween('end_date', [Carbon::now(), $sevenDaysNext])
+            ->count();
+
         $summary = [
-            'completed' => (clone $tasks)
-                ->where('status', 'done_by_qa')
-                ->where('updated_at', '>=', $sevenDaysAgo)
-                ->count(),
-
-            'updated'   => (clone $tasks)
-                ->where('updated_at', '>=', $sevenDaysAgo)
-                ->count(),
-
-            'created'   => (clone $tasks)
-                ->where('created_at', '>=', $sevenDaysAgo)
-                ->count(),
-
-            'due_soon'  => (clone $tasks)
-                ->whereNotNull('end_date')
-                ->whereBetween('end_date', [Carbon::now(), $sevenDaysNext])
-                ->count(),
+            'completed' => $completedEpics + $completedItems,
+            'updated'   => $updatedEpics + $updatedItems,
+            'created'   => $createdEpics + $createdItems,
+            'due_soon'  => $dueSoonEpics + $dueSoonItems,
         ];
 
-        $priorityBreakdown = (clone $tasks)
+        $epicPriorities = (clone $epics)
+            ->selectRaw('priority, count(*) as total')
+            ->groupBy('priority')
+            ->pluck('total', 'priority');
+
+        $itemPriorities = (clone $epicItems)
             ->selectRaw('priority, count(*) as total')
             ->groupBy('priority')
             ->pluck('total', 'priority');
@@ -107,26 +82,171 @@ class DashboardController extends Controller
         $priorities = ['highest', 'high', 'medium', 'low', 'lowest'];
         $priorityData = [];
         foreach ($priorities as $p) {
-            $priorityData[$p] = $priorityBreakdown[$p] ?? 0;
+            $priorityData[$p] = ($epicPriorities[$p] ?? 0) + ($itemPriorities[$p] ?? 0);
         }
 
-        $statusBreakdown = (clone $tasks)
+        $epicStatuses = (clone $epics)
             ->selectRaw('status, count(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        $statuses = ['to_do', 'in_progress', 'done_by_dev', 'testing', 'done_by_qa'];
+        $itemStatuses = (clone $epicItems)
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $allStatuses = array_unique(array_merge(
+            array_keys($epicStatuses->toArray()),
+            array_keys($itemStatuses->toArray())
+        ));
+
+        $workflowStatuses = WorkflowStatus::whereIn('value', $allStatuses)
+            ->get()
+            ->keyBy('value');
+
         $statusData = [];
-        foreach ($statuses as $s) {
-            $statusData[$s] = $statusBreakdown[$s] ?? 0;
+        foreach ($allStatuses as $status) {
+            $workflow = $workflowStatuses->get($status);
+            $statusData[] = [
+                'status'    => $status,
+                'label'     => $workflow?->label ?? ucfirst(str_replace('_', ' ', $status)),
+                'total'     => ($epicStatuses[$status] ?? 0) + ($itemStatuses[$status] ?? 0),
+                'color'     => $workflow?->color ?? '#6b7280',  
+                'bg_color'  => $workflow?->bg_color ?? '#f3f4f6',
+                'text_color'=> $workflow?->text_color ?? '#ffffff',
+                'category'  => $workflow?->category ?? 'default',
+            ];
         }
 
+        usort($statusData, function ($a, $b) {
+            return ($a['sort_order'] ?? 999) <=> ($b['sort_order'] ?? 999);
+        });
+
         return response()->json([
-            'space'             => $space->nama,
             'summary'           => $summary,
-            'priority_breakdown' => $priorityData,
+            'priority_breakdown'=> $priorityData,
             'status_overview'   => $statusData,
         ]);
     }
-}
 
+
+    public function index(Request $request, $spaceId)
+    {
+        $space = Space::where('id', $spaceId)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $epics = Epic::whereHas('board.space', function ($q) use ($spaceId) {
+            $q->where('id', $spaceId);
+        });
+
+        $epicItems = EpicItem::whereHas('board.space', function ($q) use ($spaceId) {
+            $q->where('id', $spaceId);
+        });
+
+        $sevenDaysAgo = Carbon::now()->subDays(7);
+        $sevenDaysNext = Carbon::now()->addDays(7);
+
+        $completedEpics = (clone $epics)
+            ->where('status', 'done_by_qa')
+            ->where('updated_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $completedItems = (clone $epicItems)
+            ->where('status', 'done_by_qa')
+            ->where('updated_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $updatedEpics = (clone $epics)
+            ->where('updated_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $updatedItems = (clone $epicItems)
+            ->where('updated_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $createdEpics = (clone $epics)
+            ->where('created_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $createdItems = (clone $epicItems)
+            ->where('created_at', '>=', $sevenDaysAgo)
+            ->count();
+
+        $dueSoonEpics = (clone $epics)
+            ->whereNotNull('end_date')
+            ->whereBetween('end_date', [Carbon::now(), $sevenDaysNext])
+            ->count();
+
+        $dueSoonItems = (clone $epicItems)
+            ->whereNotNull('end_date')
+            ->whereBetween('end_date', [Carbon::now(), $sevenDaysNext])
+            ->count();
+
+        $summary = [
+            'completed' => $completedEpics + $completedItems,
+            'updated'   => $updatedEpics + $updatedItems,
+            'created'   => $createdEpics + $createdItems,
+            'due_soon'  => $dueSoonEpics + $dueSoonItems,
+        ];
+
+        $epicPriorities = (clone $epics)
+            ->selectRaw('priority, count(*) as total')
+            ->groupBy('priority')
+            ->pluck('total', 'priority');
+
+        $itemPriorities = (clone $epicItems)
+            ->selectRaw('priority, count(*) as total')
+            ->groupBy('priority')
+            ->pluck('total', 'priority');
+
+        $priorities = ['highest', 'high', 'medium', 'low', 'lowest'];
+        $priorityData = [];
+        foreach ($priorities as $p) {
+            $priorityData[$p] = ($epicPriorities[$p] ?? 0) + ($itemPriorities[$p] ?? 0);
+        }
+
+        $epicStatuses = (clone $epics)
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $itemStatuses = (clone $epicItems)
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $allStatuses = array_unique(array_merge(
+            array_keys($epicStatuses->toArray()),
+            array_keys($itemStatuses->toArray())
+        ));
+
+        $workflowStatuses = WorkflowStatus::whereIn('value', $allStatuses)
+            ->get()
+            ->keyBy('value');
+
+        $statusData = [];
+        foreach ($allStatuses as $status) {
+            $workflow = $workflowStatuses->get($status);
+            $statusData[] = [
+                'status'     => $status,
+                'label'      => $workflow?->label ?? ucfirst(str_replace('_', ' ', $status)),
+                'total'      => ($epicStatuses[$status] ?? 0) + ($itemStatuses[$status] ?? 0),
+                'color'      => $workflow?->color ?? '#6b7280',
+                'bg_color'   => $workflow?->bg_color ?? '#f3f4f6',
+                'text_color' => $workflow?->text_color ?? '#ffffff',
+                'category'   => $workflow?->category ?? 'default',
+                'sort_order' => $workflow?->sort_order ?? 999,
+            ];
+        }
+
+        usort($statusData, fn($a, $b) => $a['sort_order'] <=> $b['sort_order']);
+
+        return response()->json([
+            'space'              => $space->nama,
+            'summary'            => $summary,
+            'priority_breakdown' => $priorityData,
+            'status_overview'    => $statusData,
+        ]);
+    }
+}

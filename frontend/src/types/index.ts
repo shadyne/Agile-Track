@@ -30,13 +30,29 @@ export interface DashboardSummary {
   due_soon: number;
 }
 
+export interface StatusItem {
+  status: string;
+  label: string;
+  total: number;
+  color: string;
+  bg_color: string;
+  text_color: string;
+  category: string;
+  sort_order: number;
+}
+
 export interface DashboardData {
   space: string;
   summary: DashboardSummary;
   priority_breakdown: Record<string, number>;
-  status_overview: Record<string, number>;
+  status_overview: StatusItem[];
 }
 
+export interface GlobalDashboardData {
+  summary: DashboardSummary;
+  priority_breakdown: Record<string, number>;
+  status_overview: StatusItem[];
+}
 export interface ActivityItem {
   id: number;
   user_name: string;

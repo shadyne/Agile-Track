@@ -56,7 +56,6 @@
                   }}
                   {{ card.label }}
                 </span>
-                <span class="summary-sub">In the last 7 days</span>
               </div>
             </div>
           </div>
@@ -154,6 +153,7 @@ import type {
   Space,
   Board,
   Epic,
+  StatusItem,
 } from "../types";
 import "../assets/css/dashboard.css";
 
@@ -285,25 +285,16 @@ const barOptions = {
 
 const pieChartData = computed(() => {
   if (!dashboardData.value) return null;
-  const so = dashboardData.value.status_overview;
+
+  const statusItems = dashboardData.value.status_overview;
+  if (!statusItems || statusItems.length === 0) return null;
+
   return {
-    labels: ["To Do", "In Progress", "Done by Dev", "Testing", "Done by QA"],
+    labels: statusItems.map((item: StatusItem) => item.label),
     datasets: [
       {
-        data: [
-          so.to_do ?? 0,
-          so.in_progress ?? 0,
-          so.done_by_dev ?? 0,
-          so.testing ?? 0,
-          so.done_by_qa ?? 0,
-        ],
-        backgroundColor: [
-          "#DC3434",
-          "#29B6F6",
-          "#43A047",
-          "#FBC02D",
-          "#7B1FA2",
-        ],
+        data: statusItems.map((item: StatusItem) => item.total),
+        backgroundColor: statusItems.map((item: StatusItem) => item.color),
         borderWidth: 0,
       },
     ],
