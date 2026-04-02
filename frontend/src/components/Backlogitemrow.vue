@@ -1,5 +1,10 @@
 <template>
-  <div class="backlog-row">
+  <div
+    class="backlog-row"
+    :draggable="draggable"
+    @dragstart="onDragStart"
+    @dragend="onDragEnd"
+  >
     <div class="row-left">
       <input type="checkbox" class="row-checkbox" />
 
@@ -45,11 +50,68 @@
     </div>
 
     <div class="row-right">
-      <span v-if="item.epic" class="epic-badge" :title="item.epic.judul">
-        {{ item.epic.kode }}
-      </span>
-      <span v-else class="epic-badge-none">+ Epic</span>
+      <!-- Epic dengan dropdown -->
+      <v-menu location="bottom end">
+        <template #activator="{ props: menuProps }">
+          <span
+            v-if="item.epic"
+            class="epic-badge"
+            :title="item.epic.judul"
+            v-bind="menuProps"
+            style="cursor: pointer"
+          >
+            {{ item.epic.kode }}
+            <v-icon icon="mdi-chevron-down" size="10" />
+          </span>
+          <span
+            v-else
+            class="epic-badge-none"
+            v-bind="menuProps"
+            style="cursor: pointer"
+          >
+            + Epic
+            <v-icon icon="mdi-chevron-down" size="10" />
+          </span>
+        </template>
+        <v-list density="compact" min-width="220" rounded="lg" elevation="3">
+          <v-list-item
+            v-for="epic in boardEpics"
+            :key="epic.id"
+            @click="epic.id !== item.epic?.id && handleEpicChange(epic.id)"
+            :disabled="epic.id === item.epic?.id"
+          >
+            <template #prepend>
+              <v-icon icon="mdi-lightning-bolt" size="14" color="#7C3AED" />
+            </template>
+            <v-list-item-title>
+              <span
+                :style="{
+                  color: epic.id === item.epic?.id ? '#9CA3AF' : '#7C3AED',
+                  fontWeight: 700,
+                }"
+              >
+                {{ epic.kode }} - {{ epic.judul }}
+              </span>
+            </v-list-item-title>
+            <template #append>
+              <v-icon
+                v-if="epic.id === item.epic?.id"
+                icon="mdi-check"
+                size="16"
+                color="#16A34A"
+              />
+            </template>
+          </v-list-item>
+          <v-divider class="my-1" />
+          <v-list-item @click="handleEpicChange(null)">
+            <v-list-item-title style="color: #8290a4">
+              Hapus dari epic
+            </v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
 
+      <!-- Status dropdown -->
       <v-menu location="bottom end">
         <template #activator="{ props: menuProps }">
           <span
@@ -126,8 +188,70 @@
         </template>
       </div>
       <div class="row-right">
-        <span v-if="child.epic" class="epic-badge">{{ child.epic.kode }}</span>
-        <span v-else class="epic-badge-none">+ Epic</span>
+        <!-- Epic untuk child item (dengan dropdown) -->
+        <v-menu location="bottom end">
+          <template #activator="{ props: menuProps }">
+            <span
+              v-if="child.epic"
+              class="epic-badge"
+              :title="child.epic.judul"
+              v-bind="menuProps"
+              style="cursor: pointer"
+            >
+              {{ child.epic.kode }}
+              <v-icon icon="mdi-chevron-down" size="10" />
+            </span>
+            <span
+              v-else
+              class="epic-badge-none"
+              v-bind="menuProps"
+              style="cursor: pointer"
+            >
+              + Epic
+              <v-icon icon="mdi-chevron-down" size="10" />
+            </span>
+          </template>
+          <v-list density="compact" min-width="220" rounded="lg" elevation="3">
+            <v-list-item
+              v-for="epic in boardEpics"
+              :key="epic.id"
+              @click="
+                epic.id !== child.epic?.id &&
+                handleChildEpicChange(child.id, epic.id)
+              "
+              :disabled="epic.id === child.epic?.id"
+            >
+              <template #prepend>
+                <v-icon icon="mdi-lightning-bolt" size="14" color="#7C3AED" />
+              </template>
+              <v-list-item-title>
+                <span
+                  :style="{
+                    color: epic.id === child.epic?.id ? '#9CA3AF' : '#7C3AED',
+                    fontWeight: 700,
+                  }"
+                >
+                  {{ epic.kode }} - {{ epic.judul }}
+                </span>
+              </v-list-item-title>
+              <template #append>
+                <v-icon
+                  v-if="epic.id === child.epic?.id"
+                  icon="mdi-check"
+                  size="16"
+                  color="#16A34A"
+                />
+              </template>
+            </v-list-item>
+            <v-divider class="my-1" />
+            <v-list-item @click="handleChildEpicChange(child.id, null)">
+              <v-list-item-title style="color: #8290a4">
+                Hapus dari epic
+              </v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+
         <span
           class="status-badge"
           :style="workflowStore.getStatusStyle(child.status)"
@@ -153,18 +277,86 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
-import type { EpicItem } from "../types";
+import { ref, onMounted } from "vue";
+import type { EpicItem, Epic } from "../types";
 import { RouterLink } from "vue-router";
 import { useWorkflowStore } from "../stores/workflow";
+import api from "../api/axios";
 
-const props = defineProps<{ item: EpicItem }>();
+const props = defineProps<{
+  item: EpicItem;
+  boardId?: number;
+  draggable?: boolean;
+}>();
 const emit = defineEmits<{
   (e: "statusChange", status: string): void;
+  (e: "epicChange", itemId: number, epicId: number | null): void;
+  (e: "refresh"): void;
 }>();
 
 const workflowStore = useWorkflowStore();
 const expanded = ref(false);
+const boardEpics = ref<Epic[]>([]);
+
+const ambilEpics = async () => {
+  if (!props.boardId && !props.item.board_id) return;
+  const boardId = props.boardId || props.item.board_id;
+
+  try {
+    const res = await api.get<Epic[]>(`/boards/${boardId}/epics`);
+    boardEpics.value = res.data;
+  } catch (error) {
+    console.error("Gagal ambil epics:", error);
+  }
+};
+
+const handleEpicChange = async (epicId: number | null) => {
+  try {
+    await api.put(`/boards/${props.item.board_id}/items/${props.item.id}`, {
+      epic_id: epicId,
+    });
+
+    if (epicId) {
+      const selectedEpic = boardEpics.value.find((e) => e.id === epicId);
+      props.item.epic = selectedEpic || null;
+      props.item.epic_id = epicId;
+    } else {
+      props.item.epic = null;
+      props.item.epic_id = null;
+    }
+
+    emit("refresh");
+  } catch (error) {
+    console.error("Gagal update epic:", error);
+  }
+};
+
+const handleChildEpicChange = async (
+  childId: number,
+  epicId: number | null,
+) => {
+  try {
+    await api.put(`/boards/${props.item.board_id}/items/${childId}`, {
+      epic_id: epicId,
+    });
+
+    const child = props.item.children?.find((c) => c.id === childId);
+    if (child) {
+      if (epicId) {
+        const selectedEpic = boardEpics.value.find((e) => e.id === epicId);
+        child.epic = selectedEpic || null;
+        child.epic_id = epicId;
+      } else {
+        child.epic = null;
+        child.epic_id = null;
+      }
+    }
+
+    emit("refresh");
+  } catch (error) {
+    console.error("Gagal update epic child:", error);
+  }
+};
 
 const getPriorityColor = (p: string) => {
   const map: Record<string, string> = {
@@ -203,6 +395,10 @@ const getLabelColor = (label: string) => {
   const colors = ["#B45309", "#059669", "#1D4ED8", "#7C3AED", "#DC2626"];
   return colors[label.charCodeAt(0) % colors.length];
 };
+
+onMounted(() => {
+  ambilEpics();
+});
 </script>
 
 <style scoped>
@@ -341,5 +537,37 @@ const getLabelColor = (label: string) => {
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+.epic-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.epic-badge-none {
+  font-size: 10px;
+  color: #8290a4;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.epic-badge-none:hover {
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.05);
 }
 </style>

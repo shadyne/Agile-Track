@@ -56,6 +56,11 @@
         v-for="sprint in filteredSprints"
         :key="sprint.id"
         class="backlog-section"
+        :data-sprint-id="sprint.id"
+        :class="{ 'drag-over': dragOverSprintId === sprint.id }"
+        @dragover.prevent="handleDragOver(sprint.id)"
+        @dragleave="handleDragLeave"
+        @drop="handleDropToSprint($event, sprint.id)"
       >
         <div class="section-header">
           <div class="section-header-left" @click="toggleSection(sprint.id)">
@@ -140,12 +145,22 @@
         </div>
 
         <div v-if="expandedSections.includes(sprint.id)" class="item-list">
-          <BacklogItemRow
+          <div
             v-for="item in sprint.items"
             :key="item.id"
-            :item="item"
-            @status-change="(status) => updateItemStatus(item, status)"
-          />
+            class="backlog-item-wrapper"
+            draggable="true"
+            @dragstart="handleDragStart($event, item)"
+            @dragend="handleDragEnd"
+          >
+            <BacklogItemRow
+              :item="item"
+              :boardId="boardId"
+              @status-change="(status) => updateItemStatus(item, status)"
+              @epicChange="handleEpicChange"
+              @refresh="refreshData"
+            />
+          </div>
           <div v-if="sprint.items.length === 0" class="empty-section">
             Belum ada task.
             <span class="link-text" @click="openCreateTask(sprint.id)"
@@ -155,7 +170,7 @@
         </div>
       </div>
 
-      <div class="backlog-section">
+      <div class="backlog-section" data-sprint-id="backlog">
         <div class="section-header">
           <div class="section-header-left" @click="toggleSection(-1)">
             <v-icon
@@ -174,11 +189,6 @@
           </div>
 
           <div class="section-header-right">
-            <span class="estimate-text">{{
-              totalEstimate(filteredBacklog)
-            }}</span>
-            <span class="estimate-text">0m</span>
-            <span class="estimate-text">0m</span>
             <v-btn
               size="small"
               variant="outlined"
@@ -193,12 +203,22 @@
         </div>
 
         <div v-if="expandedSections.includes(-1)" class="item-list">
-          <BacklogItemRow
+          <div
             v-for="item in filteredBacklog"
             :key="item.id"
-            :item="item"
-            @status-change="(status) => updateItemStatus(item, status)"
-          />
+            class="backlog-item-wrapper"
+            draggable="true"
+            @dragstart="handleDragStart($event, item)"
+            @dragend="handleDragEnd"
+          >
+            <BacklogItemRow
+              :item="item"
+              :boardId="boardId"
+              @status-change="(status) => updateItemStatus(item, status)"
+              @epicChange="handleEpicChange"
+              @refresh="refreshData"
+            />
+          </div>
           <div v-if="filteredBacklog.length === 0" class="empty-section">
             Backlog kosong.
           </div>
@@ -295,6 +315,7 @@ import type {
   Sprint,
   Epic,
   EpicItemStatus,
+  Board,
 } from "../types";
 import CreateTaskModal from "./CreateTaskModal.vue";
 import BacklogItemRow from "./Backlogitemrow.vue";
@@ -302,7 +323,6 @@ import BacklogItemRow from "./Backlogitemrow.vue";
 const props = defineProps<{
   boardId: number;
   epics: Epic[];
-  boardMembers: { id: number; name: string; email: string }[];
 }>();
 
 const emit = defineEmits<{
@@ -317,7 +337,7 @@ const filterUserId = ref<number | null>(null);
 const filterEpic = ref("All");
 const filterType = ref("All");
 const filterLabel = ref("All");
-
+const board = ref<Board | null>(null);
 const showCreateTask = ref(false);
 const createTaskSprintId = ref<number | null>(null);
 const showStartSprint = ref(false);
@@ -325,9 +345,11 @@ const selectedSprint = ref<Sprint | null>(null);
 const startingSprintLoading = ref(false);
 const startSprintForm = ref({ start_date: "", end_date: "" });
 
-// Error handling
 const showError = ref(false);
 const errorMessage = ref("");
+const isMoving = ref(false);
+const dragOverSprintId = ref<number | null>(null);
+const draggingItem = ref<EpicItem | null>(null);
 
 const addTask = (task: EpicItem) => {
   backlogItems.value.unshift(task);
@@ -336,6 +358,115 @@ const addTask = (task: EpicItem) => {
 defineExpose({
   addTask,
 });
+
+const boardMembers = computed(() => {
+  const members = board.value?.member_emails ?? [];
+  return members.map((email: string, i: number) => ({
+    id: i + 100,
+    name: email.split("@")[0],
+    email,
+  }));
+});
+
+const handleEpicChange = (itemId: number, epicId: number | null) => {
+  refreshData();
+};
+
+const refreshData = async () => {
+  await ambilData();
+};
+
+const handleDragStart = (event: DragEvent, item: EpicItem) => {
+  if (isMoving.value) {
+    event.preventDefault();
+    return;
+  }
+
+  draggingItem.value = item;
+
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(
+      "text/plain",
+      JSON.stringify({
+        id: item.id,
+        type: item.type,
+      }),
+    );
+    event.dataTransfer.dropEffect = "move";
+  }
+};
+
+const handleDragEnd = () => {
+  draggingItem.value = null;
+  dragOverSprintId.value = null;
+};
+
+const handleDragOver = (sprintId: number) => {
+  if (draggingItem.value && !isMoving.value) {
+    dragOverSprintId.value = sprintId;
+  }
+};
+
+const handleDragLeave = () => {
+  dragOverSprintId.value = null;
+};
+
+const handleDropToSprint = async (event: DragEvent, targetSprintId: number) => {
+  event.preventDefault();
+  dragOverSprintId.value = null;
+
+  if (!draggingItem.value || isMoving.value) return;
+
+  const movedItem = draggingItem.value;
+
+  if (movedItem.sprint_id !== null) {
+    errorMessage.value = "Item sudah berada di sprint";
+    showError.value = true;
+    return;
+  }
+
+  isMoving.value = true;
+
+  const originalBacklog = [...backlogItems.value];
+  const originalSprints = JSON.parse(JSON.stringify(sprints.value));
+
+  const targetSprint = sprints.value.find((s) => s.id === targetSprintId);
+  if (!targetSprint) {
+    isMoving.value = false;
+    return;
+  }
+
+  try {
+    const backlogIndex = backlogItems.value.findIndex(
+      (i) => i.id === movedItem.id,
+    );
+    if (backlogIndex !== -1) {
+      backlogItems.value.splice(backlogIndex, 1);
+    }
+
+    movedItem.sprint_id = targetSprintId;
+    targetSprint.items.unshift(movedItem);
+
+    await api.patch(
+      `/boards/${props.boardId}/backlog/items/${movedItem.id}/move-to-sprint`,
+      { sprint_id: targetSprintId },
+    );
+
+    await refreshData();
+  } catch (err: any) {
+    console.error("Gagal memindahkan item:", err);
+    errorMessage.value =
+      err.response?.data?.message ?? "Gagal memindahkan task";
+    showError.value = true;
+
+    backlogItems.value = originalBacklog;
+    sprints.value = originalSprints;
+  } finally {
+    isMoving.value = false;
+    draggingItem.value = null;
+  }
+};
 
 const allLabels = computed<string[]>(() => {
   const set = new Set<string>();
@@ -445,12 +576,12 @@ const openCreateTask = (sprintId: number | null = null) => {
 
 const onTaskCreated = (item: EpicItem) => {
   if (item.sprint_id) {
-    // Find in original sprints (not filtered), update there
     const sprint = sprints.value.find((s) => s.id === item.sprint_id);
     if (sprint) sprint.items.push(item);
   } else {
     backlogItems.value.push(item);
   }
+  refreshData();
 };
 
 const openCreateSprint = async () => {
@@ -509,7 +640,6 @@ const confirmStartSprint = async () => {
 const completeSprint = async (sprint: Sprint) => {
   try {
     await api.post(`/boards/${props.boardId}/sprints/${sprint.id}/complete`);
-    // Items that are not done go back to backlog
     const undone = sprint.items.filter((i) => i.status !== "done_by_qa");
     backlogItems.value.push(...undone);
     sprints.value = sprints.value.filter((s) => s.id !== sprint.id);
@@ -527,7 +657,6 @@ const completeSprint = async (sprint: Sprint) => {
 const deleteSprint = async (sprint: Sprint) => {
   try {
     await api.delete(`/boards/${props.boardId}/sprints/${sprint.id}`);
-    // Move items back to backlog
     backlogItems.value.push(...sprint.items);
     sprints.value = sprints.value.filter((s) => s.id !== sprint.id);
     expandedSections.value = expandedSections.value.filter(
@@ -553,7 +682,6 @@ const renameSprint = async (sprint: Sprint) => {
 
 const updateItemStatus = async (item: EpicItem, status: string) => {
   const oldStatus = item.status;
-  // Optimistic update
   item.status = status as EpicItemStatus;
   try {
     await api.patch(
@@ -561,7 +689,6 @@ const updateItemStatus = async (item: EpicItem, status: string) => {
       { status },
     );
   } catch (err: any) {
-    // Revert on error
     item.status = oldStatus;
     console.error("Gagal update status:", err);
     const msg = err.response?.data?.message ?? "Status tidak valid";
@@ -570,7 +697,9 @@ const updateItemStatus = async (item: EpicItem, status: string) => {
   }
 };
 
-onMounted(ambilData);
+onMounted(async () => {
+  await ambilData();
+});
 </script>
 
 <style scoped>
@@ -580,7 +709,6 @@ onMounted(ambilData);
   flex-direction: column;
   overflow: hidden;
   background: white;
-  /* FIX: ensure flex child can shrink below content size */
   min-height: 0;
 }
 
@@ -591,7 +719,6 @@ onMounted(ambilData);
   padding: 12px 28px;
   border-bottom: 1px solid rgba(130, 144, 164, 0.2);
   flex-wrap: wrap;
-  /* FIX: prevent filters from shrinking */
   flex-shrink: 0;
 }
 
@@ -630,10 +757,8 @@ onMounted(ambilData);
 
 .backlog-content {
   flex: 1;
-  /* FIX: this is the key fix - enable scrolling on the content area */
   overflow-y: auto;
   padding: 16px 28px 32px;
-  /* FIX: allow shrinking */
   min-height: 0;
 }
 
@@ -641,6 +766,12 @@ onMounted(ambilData);
   margin-bottom: 8px;
   border: 1px solid rgba(130, 144, 164, 0.2);
   border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.backlog-section.drag-over {
+  background: rgba(124, 58, 237, 0.05);
+  border: 2px dashed #7c3aed;
 }
 
 .section-header {
@@ -651,7 +782,6 @@ onMounted(ambilData);
   background: #f9fafb;
   border-bottom: 1px solid rgba(130, 144, 164, 0.15);
   gap: 8px;
-  /* FIX: prevent header from wrapping awkwardly */
   flex-wrap: nowrap;
 }
 
@@ -735,5 +865,18 @@ onMounted(ambilData);
 
 .link-text:hover {
   text-decoration: underline;
+}
+
+.backlog-item-wrapper {
+  cursor: grab;
+  user-select: none;
+}
+
+.backlog-item-wrapper:active {
+  cursor: grabbing;
+}
+
+.backlog-item-wrapper.dragging {
+  opacity: 0.5;
 }
 </style>

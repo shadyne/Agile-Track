@@ -7,6 +7,7 @@ use App\Models\Epic;
 use App\Models\EpicItem;
 use App\Models\EpicAttachment;
 use App\Models\Sprint;
+use App\Models\User;
 use App\Models\WorkflowStatus;
 use Illuminate\Http\Request;
 
@@ -53,36 +54,38 @@ class BacklogController extends Controller
             'judul'             => 'required|string|max:255',
             'type'              => 'required|in:story,task,qa_task,bug',
             'priority'          => 'required|in:highest,high,medium,low,lowest',
+            'epic_id'           => 'nullable|exists:epics,id', 
             'labels'            => 'nullable|array|max:5',
             'labels.*'          => 'string|max:50',
             'start_date'        => 'nullable|date',
             'end_date'          => 'nullable|date',
             'deskripsi'         => 'nullable|string',
-            'assignee_id'       => 'nullable|exists:users,id',
-            'epic_id'           => 'nullable|exists:epics,id',
+            'assignee_id'       => 'nullable',
             'parent_id'         => 'nullable|exists:epic_items,id',
             'sprint_id'         => 'nullable|exists:sprints,id',
             'original_estimate' => 'nullable|string|max:20',
             'status'            => 'nullable|string|max:50',
             'attachments'       => 'nullable|array',
             'attachments.*'     => 'file|mimes:jpg,jpeg,png,gif,mp4,mov,avi|max:51200',
+        ], [
+            'type.required' => 'Tipe task harus dipilih',
+            'type.in' => 'Tipe task tidak valid',
+            'priority.required' => 'Prioritas harus dipilih',
+            'priority.in' => 'Prioritas tidak valid',
+            'judul.required' => 'Judul task wajib diisi',
         ]);
 
         $statusValue = $this->resolveStatus($request->status, 'to_do');
+        $resolvedAssigneeId = $this->resolveAssigneeId($request->assignee_id, $request->user()->id);
 
-        $spaceKey = $board->space->key;
-
-        $lastItem  = EpicItem::where('board_id', $boardId)->orderBy('id', 'desc')->first();
-        $lastEpic  = Epic::where('board_id', $boardId)->orderBy('id', 'desc')->first();
-        $maxId     = max($lastItem?->id ?? 0, $lastEpic?->id ?? 0);
-        $kode      = $spaceKey . '-' . ($maxId + 1);
+        $kode = $this->generateKode($board->space->key, $boardId);
 
         $item = EpicItem::create([
             'epic_id'           => $request->epic_id,
             'parent_id'         => $request->parent_id,
             'board_id'          => $boardId,
             'user_id'           => $request->user()->id,
-            'assignee_id'       => $request->assignee_id,
+            'assignee_id'       => $resolvedAssigneeId,
             'sprint_id'         => $request->sprint_id,
             'kode'              => $kode,
             'judul'             => $request->judul,
@@ -150,6 +153,56 @@ class BacklogController extends Controller
             'message' => 'Item dipindah',
             'data'    => $item->load(['epic', 'assignee']),
         ]);
+    }
+
+    public function updateEpic(Request $request, $boardId, $itemId)
+    {
+        $item = EpicItem::where('board_id', $boardId)->findOrFail($itemId);
+
+        $request->validate([
+            'epic_id' => 'nullable|exists:epics,id',
+        ]);
+
+        $item->update(['epic_id' => $request->epic_id]);
+
+        return response()->json([
+            'message' => 'Epic assignment updated',
+            'data'    => $item->load(['epic', 'assignee']),
+        ]);
+    }
+
+    private function generateKode(string $spaceKey, int $boardId): string
+    {
+        $maxEpic = Epic::where('board_id', $boardId)
+            ->selectRaw("MAX(CAST(SUBSTRING_INDEX(kode, '-', -1) AS UNSIGNED)) as max_num")
+            ->value('max_num') ?? 0;
+
+        $maxItem = EpicItem::where('board_id', $boardId)
+            ->selectRaw("MAX(CAST(SUBSTRING_INDEX(kode, '-', -1) AS UNSIGNED)) as max_num")
+            ->value('max_num') ?? 0;
+
+        $nextNum = max($maxEpic, $maxItem) + 1;
+
+        return $spaceKey . '-' . $nextNum;
+    }
+
+    private function resolveAssigneeId(mixed $value, int $currentUserId): ?int
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        if (is_string($value) && str_contains($value, '@')) {
+            $user = User::where('email', $value)->first();
+            return $user?->id;
+        }
+
+        $numericId = (int) $value;
+        if ($numericId === $currentUserId) {
+            return $currentUserId;
+        }
+
+        return User::find($numericId)?->id;
     }
 
     private function resolveStatus(?string $status, ?string $default = null): ?string

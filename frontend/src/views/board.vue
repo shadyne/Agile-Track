@@ -352,14 +352,6 @@ const boardMembers = computed(() => {
     name: email.split("@")[0],
     email,
   }));
-  if (authStore.user) {
-    list.unshift({
-      id: authStore.user.id,
-      name: authStore.user.name,
-      email: authStore.user.email,
-    });
-  }
-  return list;
 });
 
 const toggleUserFilter = (userId: number) => {

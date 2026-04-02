@@ -254,10 +254,11 @@
               variant="outlined"
               :items="boardMembers"
               item-title="name"
-              item-value="id"
+              item-value="email"
               placeholder="Pilih assignee..."
               :error-messages="errors.assignee_id"
               clearable
+              :loading="boardMembers.length === 0"
             >
               <template #item="{ item, props: itemProps }">
                 <v-list-item v-bind="itemProps">
@@ -326,7 +327,6 @@ const props = defineProps<{
   modelValue: boolean;
   boardId: number;
   sprintId?: number | null;
-  boardMembers: { id: number; name: string; email: string }[];
   availableLabels: string[];
 }>();
 const emit = defineEmits<{
@@ -339,6 +339,7 @@ const workflowStore = useWorkflowStore();
 const isOpen = ref(props.modelValue);
 const loading = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const boardMembers = ref<{ id: number; name: string; email: string }[]>([]);
 
 const form = reactive<EpicItemForm & { status: string }>({
   judul: "",
@@ -356,6 +357,21 @@ const form = reactive<EpicItemForm & { status: string }>({
   attachments: [],
   status: "to_do",
 });
+
+const ambilMembers = async (): Promise<void> => {
+  try {
+    const res = await api.get(`/boards/${props.boardId}`);
+    const members = res.data.space?.member_emails ?? [];
+    boardMembers.value = members.map((email: string, i: number) => ({
+      id: i + 1,
+      name: email.split("@")[0],
+      email,
+    }));
+  } catch (err) {
+    console.error("Gagal ambil members:", err);
+    boardMembers.value = [];
+  }
+};
 
 const errors = reactive<Record<string, string>>({
   judul: "",
@@ -521,7 +537,11 @@ watch(
   () => props.modelValue,
   (val) => {
     isOpen.value = val;
-    if (val) resetForm();
+    if (val) {
+      ambilMembers();
+      resetForm();
+      resetForm();
+    }
   },
 );
 watch(isOpen, (val) => emit("update:modelValue", val));

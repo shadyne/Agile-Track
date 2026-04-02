@@ -35,7 +35,6 @@
           <span style="color: #374151; font-weight: 700">{{ item?.kode }}</span>
         </div>
 
-        <!-- Tabs -->
         <div class="board-tabs" style="padding: 0; margin-top: 0">
           <button class="tab-btn" @click="router.push(`/board/${boardId}`)">
             Timeline
@@ -303,7 +302,6 @@
               </div>
             </template>
 
-            <!-- History -->
             <template v-else>
               <div v-if="loadingHistory" class="flex justify-center py-4">
                 <v-progress-circular indeterminate size="24" color="primary" />
@@ -445,26 +443,72 @@
 
           <div class="detail-field">
             <p class="detail-field-label">Epic</p>
-            <div
-              class="detail-field-value clickable"
-              style="
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                cursor: pointer;
-              "
-              @click="
-                item.epic &&
-                router.push(`/board/${boardId}/epic/${item.epic.id}`)
-              "
-            >
-              <v-icon icon="mdi-lightning-bolt" size="14" color="#7C3AED" />
-              <span style="color: #7c3aed; font-weight: 700">
-                {{
-                  item.epic ? item.epic.kode + " " + item.epic.judul : "None"
-                }}
-              </span>
-            </div>
+            <v-menu>
+              <template #activator="{ props: menuProps }">
+                <div
+                  class="detail-field-value clickable"
+                  v-bind="menuProps"
+                  style="display: flex; align-items: center; gap: 6px"
+                >
+                  <v-icon icon="mdi-lightning-bolt" size="14" color="#7C3AED" />
+                  <span style="color: #7c3aed; font-weight: 700">
+                    {{
+                      item.epic
+                        ? item.epic.kode + " - " + item.epic.judul
+                        : "Pilih Epic..."
+                    }}
+                  </span>
+                </div>
+              </template>
+              <v-list
+                density="compact"
+                min-width="260"
+                rounded="lg"
+                elevation="3"
+              >
+                <v-list-item
+                  v-for="epic in boardEpics"
+                  :key="epic.id"
+                  @click="
+                    epic.id !== item.epic?.id && simpanField('epic_id', epic.id)
+                  "
+                  :disabled="epic.id === item.epic?.id"
+                  :class="{ 'active-epic': epic.id === item.epic?.id }"
+                >
+                  <template #prepend>
+                    <v-icon
+                      icon="mdi-lightning-bolt"
+                      size="14"
+                      :color="epic.id === item.epic?.id ? '#9CA3AF' : '#7C3AED'"
+                    />
+                  </template>
+                  <v-list-item-title>
+                    <span
+                      :style="{
+                        color:
+                          epic.id === item.epic?.id ? '#9CA3AF' : '#7C3AED',
+                      }"
+                    >
+                      {{ epic.kode }} - {{ epic.judul }}
+                    </span>
+                  </v-list-item-title>
+                  <template #append>
+                    <v-icon
+                      v-if="epic.id === item.epic?.id"
+                      icon="mdi-check"
+                      size="16"
+                      color="#16A34A"
+                    />
+                  </template>
+                </v-list-item>
+                <v-divider />
+                <v-list-item @click="simpanField('epic_id', null)">
+                  <v-list-item-title style="color: #8290a4">
+                    Hapus dari epic
+                  </v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
           </div>
 
           <div class="detail-field">
@@ -537,7 +581,7 @@
             <p class="detail-field-label">Due date</p>
             <input
               type="date"
-              :value="item.end_date ?? ''"
+              :value="formatDateForInput(item.end_date) ?? ''"
               class="detail-date-input"
               @change="
                 simpanField(
@@ -552,7 +596,7 @@
             <p class="detail-field-label">Start date</p>
             <input
               type="date"
-              :value="item.start_date ?? ''"
+              :value="formatDateForInput(item.start_date) ?? ''"
               class="detail-date-input"
               @change="
                 simpanField(
@@ -602,7 +646,7 @@ import { useSpaceStore } from "../stores/space";
 import SidebarComponent from "../components/SidebarComponent.vue";
 import TopbarComponent from "../components/TopbarComponent.vue";
 import api from "../api/axios";
-import type { EpicItem, EpicHistory, EpicComment } from "../types";
+import type { EpicItem, EpicHistory, EpicComment, Epic } from "../types";
 import "../assets/css/dashboard.css";
 import "../assets/css/board.css";
 import "../assets/css/epic-detail.css";
@@ -615,7 +659,7 @@ const spaceStore = useSpaceStore();
 
 const boardId = Number(route.params.boardId);
 const itemId = Number(route.params.itemId);
-
+const boardEpics = ref<Epic[]>([]);
 const item = ref<EpicItem | null>(null);
 const loading = ref(false);
 const saving = ref(false);
@@ -676,6 +720,20 @@ const progressPersen = computed(() => {
   ).length;
   return Math.round((done / item.value.children.length) * 100);
 });
+
+const formatDateForInput = (date: string | null) => {
+  if (!date) return "";
+  return date.split("T")[0];
+};
+
+const ambilEpics = async () => {
+  try {
+    const res = await api.get<Epic[]>(`/boards/${boardId}/epics`);
+    boardEpics.value = res.data;
+  } catch (error) {
+    console.log("Gagal mengambil data", error);
+  }
+};
 
 const getStatusLabel = (s: string) => {
   const map: Record<string, string> = {
@@ -789,22 +847,11 @@ const ambilBoard = async () => {
     const res = await api.get(`/boards/${boardId}`);
     boardNama.value = res.data.nama ?? "";
     const members = res.data.space?.member_emails ?? [];
-    boardMembers.value = [
-      ...(authStore.user
-        ? [
-            {
-              id: authStore.user.id,
-              name: authStore.user.name,
-              email: authStore.user.email,
-            },
-          ]
-        : []),
-      ...members.map((email: string, i: number) => ({
-        id: i + 100,
-        name: email.split("@")[0],
-        email,
-      })),
-    ];
+    boardMembers.value = members.map((email: string, i: number) => ({
+      id: i + 100,
+      name: email.split("@")[0],
+      email,
+    }));
   } catch (err) {
     console.error("Gagal ambil board:", err);
   }
@@ -900,5 +947,6 @@ onMounted(async () => {
   await spaceStore.ambilSpaces();
   ambilBoard();
   ambilItem();
+  ambilEpics();
 });
 </script>

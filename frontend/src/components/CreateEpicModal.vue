@@ -196,7 +196,7 @@
               variant="outlined"
               :items="boardMembers"
               item-title="name"
-              item-value="id"
+              item-value="email"
               placeholder="Pilih assignee..."
               :error-messages="errors.assignee_id"
               clearable
@@ -383,27 +383,11 @@ const ambilMembers = async (): Promise<void> => {
   try {
     const res = await api.get(`/boards/${props.boardId}`);
     const members = res.data.space?.member_emails ?? [];
-    const memberList = members.map((email: string, index: number) => ({
-      id: `member-${index}`,
-      name: email.split("@")[0],
-      email: email,
-    }));
     boardMembers.value = members.map((email: string, i: number) => ({
       id: i + 1,
       name: email.split("@")[0],
-      email: email,
+      email,
     }));
-    if (
-      authStore.user &&
-      !memberList.some((m) => m.email === authStore.user.email)
-    ) {
-      memberList.unshift({
-        id: authStore.user.id,
-        name: authStore.user.name,
-        email: authStore.user.email,
-      });
-      boardMembers.value = memberList;
-    }
   } catch (err) {
     console.error("Gagal ambil members:", err);
     boardMembers.value = [];

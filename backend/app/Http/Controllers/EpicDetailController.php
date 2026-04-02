@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Epic;
 use App\Models\EpicItem;
-
 use App\Models\EpicComment;
 use App\Models\ActivityLog;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class EpicDetailController extends Controller
@@ -39,7 +39,7 @@ class EpicDetailController extends Controller
             'deskripsi'         => 'sometimes|nullable|string',
             'start_date'        => 'sometimes|nullable|date',
             'end_date'          => 'sometimes|nullable|date',
-            'assignee_id'       => 'sometimes|nullable|exists:users,id',
+            'assignee_id'       => 'sometimes|nullable',
             'original_estimate' => 'sometimes|nullable|string|max:20',
         ]);
 
@@ -49,7 +49,13 @@ class EpicDetailController extends Controller
             'assignee_id', 'original_estimate'
         ]));
 
-        $epic->update($request->only($changed));
+        $data = $request->only($changed);
+
+        if (array_key_exists('assignee_id', $data)) {
+            $data['assignee_id'] = $this->resolveAssigneeId($data['assignee_id'], $request->user()->id);
+        }
+
+        $epic->update($data);
 
         foreach ($changed as $field) {
             ActivityLog::create([
@@ -79,17 +85,14 @@ class EpicDetailController extends Controller
             'judul' => 'required|string|max:100',
         ]);
 
-        $last = EpicItem::where('board_id', $boardId)->latest()->first();
-        $nextNumber = $last ? ((int) filter_var($last->kode, FILTER_SANITIZE_NUMBER_INT)) + 1 : 1;
-
-        $kode = 'DEV-' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+        $kode = $this->generateKode($epic->board->space->key, $boardId);
 
         $task = EpicItem::create([
             'board_id'   => $boardId,
             'epic_id'    => $epicId,
             'judul'      => $request->judul,
             'kode'       => $kode,
-            'type'       => 'task', 
+            'type'       => 'task',
             'priority'   => 'medium',
             'status'     => 'to_do',
             'user_id'    => $request->user()->id,
@@ -121,7 +124,6 @@ class EpicDetailController extends Controller
         ], 201);
     }
 
-
     public function deleteComment(Request $request, $boardId, $epicId, $commentId)
     {
         $comment = EpicComment::where('epic_id', $epicId)
@@ -151,5 +153,38 @@ class EpicDetailController extends Controller
             ]);
 
         return response()->json($logs);
+    }
+
+    private function generateKode(string $spaceKey, int $boardId): string
+    {
+        $maxEpic = \App\Models\Epic::where('board_id', $boardId)
+            ->selectRaw("MAX(CAST(SUBSTRING_INDEX(kode, '-', -1) AS UNSIGNED)) as max_num")
+            ->value('max_num') ?? 0;
+
+        $maxItem = EpicItem::where('board_id', $boardId)
+            ->selectRaw("MAX(CAST(SUBSTRING_INDEX(kode, '-', -1) AS UNSIGNED)) as max_num")
+            ->value('max_num') ?? 0;
+
+        $nextNum = max($maxEpic, $maxItem) + 1;
+
+        return $spaceKey . '-' . $nextNum;
+    }
+
+    private function resolveAssigneeId(mixed $value, int $currentUserId): ?int
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        if (is_string($value) && str_contains($value, '@')) {
+            return User::where('email', $value)->first()?->id;
+        }
+
+        $numericId = (int) $value;
+        if ($numericId === $currentUserId) {
+            return $currentUserId;
+        }
+
+        return User::find($numericId)?->id;
     }
 }

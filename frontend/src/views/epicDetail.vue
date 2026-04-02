@@ -764,22 +764,11 @@ const ambilBoard = async (): Promise<void> => {
     const res = await api.get(`/boards/${boardId}`);
     boardNama.value = res.data.nama ?? "";
     const members = res.data.space?.member_emails ?? [];
-    boardMembers.value = [
-      ...(authStore.user
-        ? [
-            {
-              id: authStore.user.id,
-              name: authStore.user.name,
-              email: authStore.user.email,
-            },
-          ]
-        : []),
-      ...members.map((email: string, i: number) => ({
-        id: i + 100,
-        name: email.split("@")[0],
-        email: email,
-      })),
-    ];
+    boardMembers.value = members.map((email: string, i: number) => ({
+      id: i + 100,
+      name: email.split("@")[0],
+      email,
+    }));
   } catch (err) {
     console.error("Gagal ambil board:", err);
   }
