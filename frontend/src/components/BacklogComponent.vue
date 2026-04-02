@@ -147,7 +147,7 @@
             @status-change="(status) => updateItemStatus(item, status)"
           />
           <div v-if="sprint.items.length === 0" class="empty-section">
-            Belum ada task. Drag item dari backlog atau
+            Belum ada task.
             <span class="link-text" @click="openCreateTask(sprint.id)"
               >buat task baru</span
             >

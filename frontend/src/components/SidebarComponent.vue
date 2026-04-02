@@ -152,11 +152,11 @@
                     rounded="lg"
                     elevation="3"
                   >
-                    <v-list-item
+                    <!-- <v-list-item
                       prepend-icon="mdi-cog-outline"
                       title="Setting Board"
                       @click="emit('openBoardSetting', board)"
-                    />
+                    /> -->
                     <v-list-item
                       prepend-icon="mdi-trash-can-outline"
                       title="Delete Board"

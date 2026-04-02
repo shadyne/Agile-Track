@@ -116,11 +116,11 @@
               </div>
             </div>
           </div>
-
+          <!-- 
           <div class="timeline-section-label">
             <div class="section-name">Sprints</div>
             <div class="section-bar-area"></div>
-          </div>
+          </div> -->
 
           <div class="timeline-section-label">
             <div class="section-name">Releases</div>
