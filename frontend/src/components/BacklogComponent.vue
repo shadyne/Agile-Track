@@ -361,11 +361,12 @@ defineExpose({
 
 const boardMembers = computed(() => {
   const members = board.value?.member_emails ?? [];
-  return members.map((email: string, i: number) => ({
+  const list = members.map((email: string, i: number) => ({
     id: i + 100,
     name: email.split("@")[0],
     email,
   }));
+  return list;
 });
 
 const handleEpicChange = (itemId: number, epicId: number | null) => {
@@ -524,6 +525,7 @@ const filteredSprints = computed(() =>
 
 const toggleUserFilter = (userId: number) => {
   filterUserId.value = filterUserId.value === userId ? null : userId;
+  console.log(filterUserId.value, "asdasd");
 };
 
 const toggleSection = (id: number) => {

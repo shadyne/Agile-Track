@@ -263,7 +263,6 @@
       </div>
     </template>
 
-    <!-- BACKLOG TAB -->
     <template v-else-if="activeTab === 'backlog'">
       <BacklogView
         ref="backlogRef"
@@ -293,7 +292,7 @@ const boardId = computed(() => Number(route.params.boardId));
 
 const board = ref<Board | null>(null);
 const epics = ref<Epic[]>([]);
-const loadingEpics = ref<boolean>(false);
+const loadingEpics = ref(false);
 const activeTab = ref<"timeline" | "backlog">("timeline");
 const expandedEpics = ref<number[]>([]);
 const viewMode = ref<string>("weeks");
@@ -354,8 +353,6 @@ const boardMembers = computed(() => {
   }));
   return list;
 });
-
-console.log("member", boardMembers);
 
 const toggleUserFilter = (userId: number) => {
   filterUserId.value = filterUserId.value === userId ? null : userId;
@@ -540,11 +537,14 @@ const toggleExpandEpic = (epicId: number): void => {
 };
 
 const ambilBoard = async (): Promise<void> => {
+  loadingEpics.value = true;
   try {
     const res = await api.get<Board>(`/boards/${boardId.value}`);
     board.value = res.data;
   } catch (err) {
     console.error("Gagal ambil board:", err);
+  } finally {
+    loadingEpics.value = false;
   }
 };
 
