@@ -364,10 +364,14 @@ const isMoving = ref(false);
 const dragOverSprintId = ref<number | null>(null);
 const draggingItem = ref<EpicItem | null>(null);
 
+const refreshData = async () => {
+  await ambilData();
+};
+
 const addTask = (task: EpicItem) => {
   backlogItems.value.unshift(task);
 };
-defineExpose({ addTask });
+defineExpose({ addTask, refreshData });
 
 const allLabels = computed<string[]>(() => {
   const set = new Set<string>();
@@ -492,23 +496,19 @@ const ambilData = async () => {
   }
 };
 
-const refreshData = async () => {
-  await ambilData();
-};
-
 const openCreateTask = (sprintId: number | null = null) => {
   createTaskSprintId.value = sprintId;
   showCreateTask.value = true;
 };
 
-const onTaskCreated = (item: EpicItem) => {
+const onTaskCreated = async (item: EpicItem): Promise<void> => {
   if (item.sprint_id) {
     const sprint = sprints.value.find((s) => s.id === item.sprint_id);
     if (sprint) sprint.items.push(item);
   } else {
     backlogItems.value.push(item);
   }
-  refreshData();
+  await refreshData();
 };
 
 const openCreateSprint = async () => {

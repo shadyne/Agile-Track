@@ -496,10 +496,6 @@ const toggleExpandEpic = (epicId: number): void => {
   else expandedEpics.value.splice(idx, 1);
 };
 
-// ── Data fetching ──────────────────────────────────────────────────────────
-// IMPORTANT: ambilBoard & ambilEpics must be declared BEFORE the watch/onMounted
-// that reference them, to avoid "Cannot access before initialization" errors.
-
 const ambilBoard = async (): Promise<void> => {
   try {
     const membersRes = await api.get(`/boards/${boardId.value}/members`);
@@ -523,14 +519,18 @@ const ambilEpics = async (): Promise<void> => {
   }
 };
 
-// Expose refreshEpics so dashboard.vue can call it after create epic/task
 const refreshEpics = async (): Promise<void> => {
   await ambilEpics();
 };
 
-defineExpose({ refreshEpics });
+const refreshBacklog = async (): Promise<void> => {
+  if (backlogRef.value) {
+    await (backlogRef.value as any).refreshData?.();
+  }
+};
 
-// Watch tab changes — refresh epics when switching back to timeline
+defineExpose({ refreshEpics, refreshBacklog });
+
 watch(activeTab, (val) => {
   emit("updateTab", val);
   if (val === "timeline") {
@@ -538,7 +538,6 @@ watch(activeTab, (val) => {
   }
 });
 
-// Refresh when navigating to a different board via sidebar
 watch(
   () => route.params.boardId,
   async () => {

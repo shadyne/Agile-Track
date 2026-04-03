@@ -87,7 +87,6 @@
       </main>
     </div>
 
-    <!-- Modals -->
     <RecentActivityModal v-model="showRecent" :space-id="activeSpaceId" />
     <CreateSpaceModal
       v-model="showCreateSpace"
@@ -185,7 +184,6 @@ const authStore = useAuthStore();
 const spaceStore = useSpaceStore();
 const workflowStore = useWorkflowStore();
 
-// Ref to the board view component so we can call refreshEpics on it
 const boardViewRef = ref<any>(null);
 
 const activeView = ref<"dashboard" | "space">("dashboard");
@@ -229,8 +227,7 @@ const boardMembers = computed(() => {
   if (!activeSpaceId.value) return [];
   const space = spaceStore.spaces.find((s) => s.id === activeSpaceId.value);
   if (!space) return [];
-  const members = space.member_emails ?? [];
-  return members.map((email: string, i: number) => ({
+  return (space.member_emails ?? []).map((email: string, i: number) => ({
     id: i + 100,
     name: email.split("@")[0],
     email,
@@ -288,10 +285,8 @@ const barOptions = {
 
 const pieChartData = computed(() => {
   if (!dashboardData.value) return null;
-
   const statusItems = dashboardData.value.status_overview;
-  if (!statusItems || statusItems.length === 0) return null;
-
+  if (!statusItems?.length) return null;
   return {
     labels: statusItems.map((item: StatusItem) => item.label),
     datasets: [
@@ -318,6 +313,49 @@ const pieOptions = {
     },
   },
 };
+
+const ambilData = async (): Promise<void> => {
+  loading.value = true;
+  try {
+    let res;
+    if (activeView.value === "dashboard" || !activeSpaceId.value) {
+      res = await api.get("/dashboard");
+    } else {
+      res = await api.get(`/spaces/${activeSpaceId.value}/dashboard`);
+    }
+    dashboardData.value = res.data;
+  } catch (err) {
+    console.error("Gagal ambil data dashboard:", err);
+  } finally {
+    loading.value = false;
+  }
+};
+
+watch(
+  () => route.path,
+  (newPath, oldPath) => {
+    if (!newPath.startsWith("/board")) {
+      currentTab.value = null;
+    }
+
+    const wasOnNonDashboard =
+      oldPath?.startsWith("/board") || oldPath === "/workflow-settings";
+    const nowOnDashboard = newPath === "/" || newPath === "";
+
+    if (wasOnNonDashboard && nowOnDashboard) {
+      activeView.value = "dashboard";
+      ambilData();
+    }
+  },
+);
+
+watch(
+  () => route.params.boardId,
+  (id) => {
+    if (id) activeBoardId.value = Number(id);
+  },
+  { immediate: true },
+);
 
 const openCreateSpace = (): void => {
   editSpaceData.value = null;
@@ -347,9 +385,10 @@ const openDeleteBoard = (space: Space, board: Board): void => {
 const onSpaceSaved = (): void => {
   if (spaceStore.spaces.length > 0 && activeSpaceId.value === 0) {
     activeSpaceId.value = spaceStore.spaces[0]?.id ?? 0;
-    ambilData();
   }
+  ambilData();
 };
+
 const onSpaceDeleted = (): void => {
   if (spaceStore.spaces.length > 0) {
     activeSpaceId.value = spaceStore.spaces[0]?.id ?? 0;
@@ -360,11 +399,13 @@ const onSpaceDeleted = (): void => {
     dashboardData.value = null;
   }
 };
+
 const onBoardCreated = (): void => {
   if (selectedSpaceForBoard.value) {
     spaceStore.ambilBoards(selectedSpaceForBoard.value.id);
   }
 };
+
 const onBoardDeleted = (): void => {
   activeBoardId.value = 0;
   router.push("/");
@@ -379,47 +420,18 @@ const handleCreateClick = (): void => {
   }
 };
 
-// After epic created, refresh the board's epic list
-const onEpicCreated = async (epic: Epic): Promise<void> => {
-  await boardViewRef.value?.refreshEpics?.();
+const onEpicCreated = async (_epic: Epic): Promise<void> => {
+  if (boardViewRef.value?.refreshEpics) {
+    await boardViewRef.value.refreshEpics();
+  }
 };
 
-// After task created, refresh the board's epic list (for timeline) and backlog
-const handleTaskCreated = async (task: any): Promise<void> => {
-  await boardViewRef.value?.refreshEpics?.();
-};
-
-watch(
-  () => route.params.boardId,
-  (id) => {
-    if (id) activeBoardId.value = Number(id);
-  },
-  { immediate: true },
-);
-
-watch(
-  () => route.path,
-  (path) => {
-    if (!path.startsWith("/board")) {
-      currentTab.value = null;
-    }
-  },
-);
-
-const ambilData = async (): Promise<void> => {
-  loading.value = true;
-  try {
-    let res;
-    if (activeView.value === "dashboard" || !activeSpaceId.value) {
-      res = await api.get("/dashboard");
-    } else {
-      res = await api.get(`/spaces/${activeSpaceId.value}/dashboard`);
-    }
-    dashboardData.value = res.data;
-  } catch (err) {
-    console.error("Gagal ambil data dashboard:", err);
-  } finally {
-    loading.value = false;
+const handleTaskCreated = async (_task: any): Promise<void> => {
+  if (boardViewRef.value?.refreshEpics) {
+    await boardViewRef.value.refreshEpics();
+  }
+  if (boardViewRef.value?.refreshBacklog) {
+    await boardViewRef.value.refreshBacklog();
   }
 };
 

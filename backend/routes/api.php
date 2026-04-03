@@ -14,6 +14,8 @@ use App\Http\Controllers\BacklogController;
 use App\Http\Controllers\ItemDetailController;
 use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\SearchController;
+
 
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -28,6 +30,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('spaces', SpaceController::class)
         ->except(['show']);
 
+    Route::get('/search', [SearchController::class, 'search']);
     Route::get('/spaces/{spaceId}/boards', [BoardController::class, 'index']);
     Route::post('/spaces/{spaceId}/boards', [BoardController::class, 'store']);
     Route::put('/spaces/{spaceId}/boards/{boardId}', [BoardController::class, 'update']);
