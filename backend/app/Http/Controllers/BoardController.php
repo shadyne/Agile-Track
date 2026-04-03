@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Board;
 use App\Models\Space;
 use Illuminate\Http\Request;
+use App\Models\User;
 
 class BoardController extends Controller
 {
@@ -93,5 +94,18 @@ class BoardController extends Controller
         $board->delete();
 
         return response()->json(['message' => 'Board berhasil dihapus']);
+    }
+
+    public function getMembers($boardId)
+    {
+        $board = Board::with('space')->findOrFail($boardId);
+        
+        $memberEmails = $board->space->member_emails ?? [];
+        
+        $members = User::whereIn('email', $memberEmails)
+            ->select('id', 'name', 'email')
+            ->get();
+        
+        return response()->json($members);
     }
 }

@@ -31,6 +31,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/spaces/{spaceId}/boards', [BoardController::class, 'store']);
     Route::put('/spaces/{spaceId}/boards/{boardId}', [BoardController::class, 'update']);
     Route::delete('/spaces/{spaceId}/boards/{boardId}', [BoardController::class, 'destroy']);
+    Route::get('/boards/{boardId}/members', [BoardController::class, 'getMembers']);
 
     Route::get('/boards/{boardId}', [BoardController::class, 'show']);
 
@@ -66,6 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/boards/{boardId}/items/{itemId}', [ItemDetailController::class, 'update']);
     Route::post('/boards/{board}/items/{item}/children', [ItemDetailController::class, 'storeChild']);
     Route::get('/boards/{boardId}/items/{itemId}/history', [ItemDetailController::class, 'history']);
+    
 
     // Dashboard
     Route::get('/spaces/{spaceId}/dashboard', [DashboardController::class, 'index']);

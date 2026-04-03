@@ -70,15 +70,18 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach((to, _from) => {
   const token = localStorage.getItem("token");
+
   if (to.meta.requiresAuth && !token) {
-    next("/login");
-  } else if (to.meta.guest && token) {
-    next("/");
-  } else {
-    next();
+    return "/login";
   }
+
+  if (to.meta.guest && token) {
+    return "/";
+  }
+
+  return true;
 });
 
 export default router;

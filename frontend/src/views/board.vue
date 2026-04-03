@@ -8,14 +8,14 @@
       <button
         class="tab-btn"
         :class="{ active: activeTab === 'timeline' }"
-        @click="activeTab = 'timeline'"
+        @click="setTab('timeline')"
       >
         Timeline
       </button>
       <button
         class="tab-btn"
         :class="{ active: activeTab === 'backlog' }"
-        @click="activeTab = 'backlog'"
+        @click="setTab('backlog')"
       >
         Backlog
       </button>
@@ -30,7 +30,6 @@
             class="avatar-filter"
             :class="{ active: filterUserId === member.id }"
             :title="member.name"
-            @click="toggleUserFilter(member.id)"
           >
             <span style="color: #020f40; font-size: 11px; font-weight: 700">
               {{ member.name.charAt(0).toUpperCase() }}
@@ -116,11 +115,6 @@
               </div>
             </div>
           </div>
-          <!-- 
-          <div class="timeline-section-label">
-            <div class="section-name">Sprints</div>
-            <div class="section-bar-area"></div>
-          </div> -->
 
           <div class="timeline-section-label">
             <div class="section-name">Releases</div>
@@ -276,8 +270,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { RouterLink, useRoute } from "vue-router";
-import { useAuthStore } from "../stores/auth";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useWorkflowStore } from "../stores/workflow";
 import api from "../api/axios";
 import type { Epic, Board } from "../types";
@@ -286,19 +279,19 @@ import "../assets/css/board.css";
 import BacklogView from "../components/BacklogComponent.vue";
 
 const route = useRoute();
-const authStore = useAuthStore();
+const router = useRouter();
 const workflowStore = useWorkflowStore();
 const boardId = computed(() => Number(route.params.boardId));
 
 const board = ref<Board | null>(null);
 const epics = ref<Epic[]>([]);
 const loadingEpics = ref(false);
-const activeTab = ref<"timeline" | "backlog">("timeline");
 const expandedEpics = ref<number[]>([]);
 const viewMode = ref<string>("weeks");
 const timelineRef = ref<HTMLElement | null>(null);
 const filterUserId = ref<number | null>(null);
 const backlogRef = ref();
+const boardMembers = ref<{ id: number; name: string; email: string }[]>([]);
 
 const filterEpic = ref("All");
 const filterType = ref("All");
@@ -306,11 +299,25 @@ const filterLabel = ref("All");
 const filterStatus = ref("All");
 const filterUser = ref<number | "All">("All");
 
+const activeTab = computed<"timeline" | "backlog">(() => {
+  const q = route.query.tab as string;
+  return q === "backlog" ? "backlog" : "timeline";
+});
+
+const setTab = (tab: "timeline" | "backlog") => {
+  router.replace({
+    path: route.path,
+    query: tab === "timeline" ? {} : { tab },
+  });
+};
+
+const emit = defineEmits<{
+  (e: "updateTab", val: "timeline" | "backlog"): void;
+}>();
+
+watch(activeTab, (val) => emit("updateTab", val), { immediate: true });
+
 onMounted(async () => {
-  const tabParam = route.query.tab as string;
-  if (tabParam === "backlog") {
-    activeTab.value = "backlog";
-  }
   await workflowStore.fetchStatuses();
   await ambilBoard();
   await ambilEpics();
@@ -325,34 +332,12 @@ watch(
   },
 );
 
-const emit = defineEmits<{
-  (e: "updateTab", val: "timeline" | "backlog"): void;
-}>();
-
-watch(
-  activeTab,
-  (val) => {
-    emit("updateTab", val);
-  },
-  { immediate: true },
-);
-
 const viewModes = [
   { label: "Today", value: "today" },
   { label: "Weeks", value: "weeks" },
   { label: "Months", value: "months" },
   { label: "Quarters", value: "quarters" },
 ];
-
-const boardMembers = computed(() => {
-  const members = board.value?.member_emails ?? [];
-  const list = members.map((email: string, i: number) => ({
-    id: i + 100,
-    name: email.split("@")[0],
-    email,
-  }));
-  return list;
-});
 
 const toggleUserFilter = (userId: number) => {
   filterUserId.value = filterUserId.value === userId ? null : userId;
@@ -366,13 +351,9 @@ const allLabels = computed<string[]>(() => {
 });
 
 const assigneeOptions = computed(() => {
-  const users = epics.value
-    .map((e) => ({ id: e.assignee_id, name: e.assignee?.name }))
-    .filter((u) => u.id);
-  const unique = Array.from(new Map(users.map((u) => [u.id, u])).values());
   return [
     { title: "All", value: "All" },
-    ...unique.map((u) => ({ title: u.name ?? `User ${u.id}`, value: u.id })),
+    ...boardMembers.value.map((m) => ({ title: m.name, value: m.id })),
   ];
 });
 
@@ -537,17 +518,16 @@ const toggleExpandEpic = (epicId: number): void => {
 };
 
 const ambilBoard = async (): Promise<void> => {
-  loadingEpics.value = true;
   try {
+    const membersRes = await api.get(`/boards/${boardId.value}/members`);
+    boardMembers.value = membersRes.data;
+
     const res = await api.get<Board>(`/boards/${boardId.value}`);
     board.value = res.data;
   } catch (err) {
     console.error("Gagal ambil board:", err);
-  } finally {
-    loadingEpics.value = false;
   }
 };
-
 const ambilEpics = async (): Promise<void> => {
   loadingEpics.value = true;
   try {

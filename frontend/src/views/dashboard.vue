@@ -376,13 +376,9 @@ const handleCreateClick = (): void => {
   }
 };
 
-const onEpicCreated = (epic: Epic): void => {
-  console.log("Epic created:", epic.kode);
-};
+const onEpicCreated = (epic: Epic): void => {};
 
-const handleTaskCreated = (task: any): void => {
-  console.log("Task created:", task.kode);
-};
+const handleTaskCreated = (task: any): void => {};
 
 watch(
   () => route.params.boardId,

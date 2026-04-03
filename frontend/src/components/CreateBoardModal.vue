@@ -30,7 +30,7 @@
             />
           </div>
 
-          <div class="field-wrap">
+          <!-- <div class="field-wrap">
             <label class="field-label">Bring team along</label>
             <v-select
               v-model="form.member_emails"
@@ -58,7 +58,7 @@
                 </v-chip>
               </template>
             </v-select>
-          </div>
+          </div> -->
         </v-form>
       </v-card-text>
 

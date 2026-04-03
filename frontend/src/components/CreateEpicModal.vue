@@ -318,7 +318,6 @@ const priorityOptions = [
 const reporterInitial = computed<string>(
   () => authStore.user?.name?.charAt(0).toUpperCase() || "U",
 );
-console.log(authStore.user?.name);
 
 const getPriorityColor = (priority: string): string => {
   const map: Record<string, string> = {
@@ -411,7 +410,6 @@ watch(
   () => authStore.user,
   (user) => {
     if (user) {
-      console.log(user.name);
     }
   },
   { immediate: true },

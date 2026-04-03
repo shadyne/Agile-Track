@@ -86,11 +86,15 @@
           </div>
 
           <div class="section-header-right">
-            <span class="estimate-text">0m</span>
-            <span class="estimate-text estimate-active">{{
-              totalEstimate(sprint.items)
+            <span class="estimate-text">{{
+              totalMonths(sprint.items) ?? "mo"
             }}</span>
-            <span class="estimate-text">0m</span>
+            <span class="estimate-text estimate-active">{{
+              totalDays(sprint.items)
+            }}</span>
+            <span class="estimate-text">{{
+              totalHours(sprint.items) ?? "h"
+            }}</span>
 
             <v-btn
               v-if="sprint.status === 'planning'"
@@ -294,7 +298,6 @@
       </v-card>
     </v-dialog>
 
-    <!-- Error Snackbar -->
     <v-snackbar
       v-model="showError"
       color="error"
@@ -323,8 +326,8 @@ import BacklogItemRow from "./Backlogitemrow.vue";
 const props = defineProps<{
   boardId: number;
   epics: Epic[];
+  boardMembers?: { id: number; name: string; email: string }[];
 }>();
-
 const emit = defineEmits<{
   (e: "refresh"): void;
 }>();
@@ -357,16 +360,6 @@ const addTask = (task: EpicItem) => {
 
 defineExpose({
   addTask,
-});
-
-const boardMembers = computed(() => {
-  const members = board.value?.member_emails ?? [];
-  const list = members.map((email: string, i: number) => ({
-    id: i + 100,
-    name: email.split("@")[0],
-    email,
-  }));
-  return list;
 });
 
 const handleEpicChange = (itemId: number, epicId: number | null) => {
@@ -525,7 +518,6 @@ const filteredSprints = computed(() =>
 
 const toggleUserFilter = (userId: number) => {
   filterUserId.value = filterUserId.value === userId ? null : userId;
-  console.log(filterUserId.value, "asdasd");
 };
 
 const toggleSection = (id: number) => {
@@ -543,13 +535,54 @@ const sprintDateRange = (sprint: Sprint): string => {
   return `${fmt(sprint.start_date)} – ${fmt(sprint.end_date)}`;
 };
 
-const totalEstimate = (items: EpicItem[]): string => {
-  const total = items.reduce((sum, i) => {
-    if (!i.original_estimate) return sum;
-    const match = i.original_estimate.match(/(\d+)h/);
-    return sum + (match ? parseInt(match[1]) : 0);
-  }, 0);
-  return total > 0 ? `${total}h` : "0m";
+const getTotalMinutes = (items: EpicItem[]): number => {
+  let totalMinutes = 0;
+
+  items.forEach((item) => {
+    if (!item.original_estimate) return;
+
+    const estimate = item.original_estimate;
+
+    const monthsMatch = estimate.match(/(\d+)\s*mo/);
+    if (monthsMatch) totalMinutes += parseInt(monthsMatch[1]) * 30 * 8 * 60;
+
+    const weeksMatch = estimate.match(/(\d+)\s*w/);
+    if (weeksMatch) totalMinutes += parseInt(weeksMatch[1]) * 7 * 8 * 60;
+
+    const daysMatch = estimate.match(/(\d+)\s*d/);
+    if (daysMatch) totalMinutes += parseInt(daysMatch[1]) * 8 * 60;
+
+    const hoursMatch = estimate.match(/(\d+)\s*h/);
+    if (hoursMatch) totalMinutes += parseInt(hoursMatch[1]) * 60;
+
+    const minutesMatch = estimate.match(/(\d+)\s*m(?!o)/);
+    if (minutesMatch) totalMinutes += parseInt(minutesMatch[1]);
+  });
+
+  return totalMinutes;
+};
+
+const totalMonths = (items: EpicItem[]): string => {
+  const totalMinutes = getTotalMinutes(items);
+  const months = Math.floor(totalMinutes / (30 * 8 * 60));
+  return months > 0 ? `${months}mo` : "0mo";
+};
+
+const totalDays = (items: EpicItem[]): string => {
+  const totalMinutes = getTotalMinutes(items);
+  const months = Math.floor(totalMinutes / (30 * 8 * 60));
+  const remainingAfterMonths = totalMinutes % (30 * 8 * 60);
+  const days = Math.floor(remainingAfterMonths / (8 * 60));
+  return days > 0 ? `${days}d` : "0d";
+};
+
+const totalHours = (items: EpicItem[]): string => {
+  const totalMinutes = getTotalMinutes(items);
+  const months = Math.floor(totalMinutes / (30 * 8 * 60));
+  const remainingAfterMonths = totalMinutes % (30 * 8 * 60);
+  const days = Math.floor(remainingAfterMonths / (8 * 60));
+  const hours = Math.floor((remainingAfterMonths % (8 * 60)) / 60);
+  return hours > 0 ? `${hours}h` : "0h";
 };
 
 const ambilData = async () => {

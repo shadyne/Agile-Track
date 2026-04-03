@@ -10,15 +10,10 @@
       >
         <h1 class="board-title">{{ boardNama }}</h1>
         <div class="board-tabs" style="padding: 0">
-          <button class="tab-btn" @click="router.push(`/board/${boardId}`)">
+          <button class="tab-btn" @click="goToBoard('timeline')">
             Timeline
           </button>
-          <button
-            class="tab-btn"
-            @click="router.push(`/board/${boardId}?tab=backlog`)"
-          >
-            Backlog
-          </button>
+          <button class="tab-btn" @click="goToBoard('backlog')">Backlog</button>
         </div>
       </div>
 
@@ -429,9 +424,9 @@
                 >
                   <template #prepend>
                     <v-avatar size="24" color="primary">
-                      <span style="color: white; font-size: 10px">{{
-                        m.name.charAt(0).toUpperCase()
-                      }}</span>
+                      <span style="color: white; font-size: 10px">
+                        {{ m.name.charAt(0).toUpperCase() }}
+                      </span>
                     </v-avatar>
                   </template>
                 </v-list-item>
@@ -460,15 +455,14 @@
           <div class="detail-field">
             <p class="detail-field-label">Labels</p>
             <div style="display: flex; flex-wrap: wrap; gap: 4px">
-              <span v-for="lbl in epic.labels" :key="lbl" class="label-chip">
-                {{ lbl }}
-              </span>
+              <span v-for="lbl in epic.labels" :key="lbl" class="label-chip">{{
+                lbl
+              }}</span>
               <span
                 v-if="!epic.labels?.length"
                 style="font-size: 13px; color: #8290a4"
+                >None</span
               >
-                None
-              </span>
             </div>
           </div>
 
@@ -609,12 +603,6 @@ const linkedUrl = ref<string>("");
 const boardNama = ref<string>("");
 const boardMembers = ref<{ id: number; name: string; email: string }[]>([]);
 const showCreateChild = ref(false);
-const newChildTitle = ref("");
-const loadingCreateChild = ref(false);
-
-const activeView = ref<"dashboard" | "space">("space");
-const activeSpaceId = ref<number>(0);
-
 const editJudul = ref<string>("");
 const editDeskripsi = ref<string>("");
 const editEstimate = ref<string>("");
@@ -637,6 +625,13 @@ const priorityOptions = [
   { label: "Low", value: "low" },
   { label: "Lowest", value: "lowest" },
 ];
+
+const goToBoard = (tab: "timeline" | "backlog") => {
+  router.push({
+    path: `/board/${boardId}`,
+    query: tab === "timeline" ? {} : { tab },
+  });
+};
 
 const progressPersen = computed<number>(() => {
   if (!epic.value?.items?.length) return 0;
@@ -704,15 +699,12 @@ const getEpicColor = (label?: string): string => {
 };
 
 const formatTime = (dateStr: string): string => {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
+  const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 };
 
 const ambilEpic = async (): Promise<void> => {
@@ -731,20 +723,18 @@ const ambilEpic = async (): Promise<void> => {
 };
 
 const handleCreateChild = async (title: string): Promise<void> => {
-  console.log(epic.value, "item");
-
   if (!epic.value) return;
   try {
     const res = await api.post(`/boards/${boardId}/epics/${epicId}/items`, {
       judul: title,
     });
-
     if (!epic.value?.items) epic.value.items = [];
     epic.value.items.push(res.data.data);
   } catch (err) {
     console.error("Gagal tambah child:", err);
   }
 };
+
 const ambilHistory = async (): Promise<void> => {
   loadingHistory.value = true;
   try {
@@ -759,16 +749,13 @@ const ambilHistory = async (): Promise<void> => {
   }
 };
 
-const ambilBoard = async (): Promise<void> => {
+const ambilBoard = async () => {
   try {
-    const res = await api.get(`/boards/${boardId}`);
-    boardNama.value = res.data.nama ?? "";
-    const members = res.data.space?.member_emails ?? [];
-    boardMembers.value = members.map((email: string, i: number) => ({
-      id: i + 100,
-      name: email.split("@")[0],
-      email,
-    }));
+    const membersRes = await api.get(`/boards/${boardId}/members`);
+    boardMembers.value = membersRes.data;
+
+    const boardRes = await api.get(`/boards/${boardId}`);
+    boardNama.value = boardRes.data.nama ?? "";
   } catch (err) {
     console.error("Gagal ambil board:", err);
   }
@@ -777,7 +764,6 @@ const ambilBoard = async (): Promise<void> => {
 const simpanField = async (field: string, value: any): Promise<void> => {
   if (!epic.value) return;
   if ((epic.value as any)[field] === value) return;
-
   try {
     const res = await api.put<{ data: Epic }>(
       `/boards/${boardId}/epics/${epicId}`,
@@ -794,7 +780,6 @@ const simpanField = async (field: string, value: any): Promise<void> => {
 
 const kirimKomentar = async (): Promise<void> => {
   if (!newComment.value.trim()) return;
-
   try {
     const res = await api.post(`/boards/${boardId}/epics/${epicId}/comments`, {
       isi: newComment.value,
@@ -807,9 +792,7 @@ const kirimKomentar = async (): Promise<void> => {
 };
 
 watch(activeTab, (tab) => {
-  if (tab === "history" && !history.value.length) {
-    ambilHistory();
-  }
+  if (tab === "history" && !history.value.length) ambilHistory();
 });
 
 onMounted(async () => {

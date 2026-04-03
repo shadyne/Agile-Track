@@ -1,6 +1,7 @@
 <template>
   <div class="epic-detail-layout">
     <div class="epic-detail-main">
+      <!-- Breadcrumb + Board Tabs -->
       <div
         style="
           padding: 16px 28px 0;
@@ -20,7 +21,7 @@
         >
           <span
             style="cursor: pointer; color: #65a9ec"
-            @click="router.push(`/board/${boardId}`)"
+            @click="goToBoard('timeline')"
             >{{ boardNama }}</span
           >
           <v-icon icon="mdi-chevron-right" size="14" />
@@ -36,15 +37,10 @@
         </div>
 
         <div class="board-tabs" style="padding: 0; margin-top: 0">
-          <button class="tab-btn" @click="router.push(`/board/${boardId}`)">
+          <button class="tab-btn" @click="goToBoard('timeline')">
             Timeline
           </button>
-          <button
-            class="tab-btn"
-            @click="router.push(`/board/${boardId}?tab=backlog`)"
-          >
-            Backlog
-          </button>
+          <button class="tab-btn" @click="goToBoard('backlog')">Backlog</button>
         </div>
       </div>
 
@@ -199,8 +195,9 @@
                   <RouterLink
                     :to="`/board/${boardId}/item/${child.id}`"
                     class="child-item-key"
-                    >{{ child.kode }}</RouterLink
                   >
+                    {{ child.kode }}
+                  </RouterLink>
                   <span class="child-item-title">{{ child.judul }}</span>
                 </div>
                 <div
@@ -260,7 +257,6 @@
               </button>
             </div>
 
-            <!-- Comments -->
             <template v-if="activeTab === 'comments'">
               <div class="comment-input-wrap mb-4">
                 <v-avatar size="32" color="primary">
@@ -337,6 +333,7 @@
           </div>
         </div>
 
+        <!-- Sidebar (unchanged) -->
         <div class="epic-sidebar">
           <div class="detail-section-title">Details</div>
 
@@ -473,7 +470,6 @@
                     epic.id !== item.epic?.id && simpanField('epic_id', epic.id)
                   "
                   :disabled="epic.id === item.epic?.id"
-                  :class="{ 'active-epic': epic.id === item.epic?.id }"
                 >
                   <template #prepend>
                     <v-icon
@@ -503,9 +499,9 @@
                 </v-list-item>
                 <v-divider />
                 <v-list-item @click="simpanField('epic_id', null)">
-                  <v-list-item-title style="color: #8290a4">
-                    Hapus dari epic
-                  </v-list-item-title>
+                  <v-list-item-title style="color: #8290a4"
+                    >Hapus dari epic</v-list-item-title
+                  >
                 </v-list-item>
               </v-list>
             </v-menu>
@@ -643,8 +639,6 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useSpaceStore } from "../stores/space";
-import SidebarComponent from "../components/SidebarComponent.vue";
-import TopbarComponent from "../components/TopbarComponent.vue";
 import api from "../api/axios";
 import type { EpicItem, EpicHistory, EpicComment, Epic } from "../types";
 import "../assets/css/dashboard.css";
@@ -685,9 +679,6 @@ const newComment = ref("");
 const history = ref<EpicHistory[]>([]);
 const loadingHistory = ref(false);
 
-const activeView = ref<"dashboard" | "space">("space");
-const activeSpaceId = ref(0);
-
 const estimateHelp = "1mo=month, 1w=week, 1d=day, 1h=hour, 1m=minute";
 
 const statusOptions = [
@@ -713,6 +704,15 @@ const typeOptions = [
   { label: "QA Task", value: "qa_task" },
 ];
 
+// ── Kembali ke board dengan tab yang dipilih (query param) ──────────────────
+const goToBoard = (tab: "timeline" | "backlog") => {
+  router.push({
+    path: `/board/${boardId}`,
+    query: tab === "timeline" ? {} : { tab },
+  });
+};
+// ────────────────────────────────────────────────────────────────────────────
+
 const progressPersen = computed(() => {
   if (!item.value?.children?.length) return 0;
   const done = item.value.children.filter(
@@ -721,19 +721,8 @@ const progressPersen = computed(() => {
   return Math.round((done / item.value.children.length) * 100);
 });
 
-const formatDateForInput = (date: string | null) => {
-  if (!date) return "";
-  return date.split("T")[0];
-};
-
-const ambilEpics = async () => {
-  try {
-    const res = await api.get<Epic[]>(`/boards/${boardId}/epics`);
-    boardEpics.value = res.data;
-  } catch (error) {
-    console.log("Gagal mengambil data", error);
-  }
-};
+const formatDateForInput = (date: string | null) =>
+  date ? date.split("T")[0] : "";
 
 const getStatusLabel = (s: string) => {
   const map: Record<string, string> = {
@@ -825,16 +814,13 @@ const ambilItem = async () => {
     loading.value = false;
   }
 };
+
 const handleCreateChild = async (title: string) => {
-  console.log("child", item.value);
-
   if (!item.value) return;
-
   try {
     const res = await api.post(`/boards/${boardId}/items/${itemId}/children`, {
       judul: title,
     });
-
     if (!item.value.children) item.value.children = [];
     item.value.children.push(res.data.data);
   } catch (err) {
@@ -844,16 +830,22 @@ const handleCreateChild = async (title: string) => {
 
 const ambilBoard = async () => {
   try {
-    const res = await api.get(`/boards/${boardId}`);
-    boardNama.value = res.data.nama ?? "";
-    const members = res.data.space?.member_emails ?? [];
-    boardMembers.value = members.map((email: string, i: number) => ({
-      id: i + 100,
-      name: email.split("@")[0],
-      email,
-    }));
+    const membersRes = await api.get(`/boards/${boardId}/members`);
+    boardMembers.value = membersRes.data;
+
+    const boardRes = await api.get(`/boards/${boardId}`);
+    boardNama.value = boardRes.data.nama ?? "";
   } catch (err) {
     console.error("Gagal ambil board:", err);
+  }
+};
+
+const ambilEpics = async () => {
+  try {
+    const res = await api.get<Epic[]>(`/boards/${boardId}/epics`);
+    boardEpics.value = res.data;
+  } catch (err) {
+    console.error("Gagal ambil epics:", err);
   }
 };
 
@@ -874,7 +866,6 @@ const ambilHistory = async () => {
 const simpanField = async (field: string, value: any) => {
   if (!item.value) return;
   if ((item.value as any)[field] === value) return;
-
   try {
     const res = await api.put<{ data: EpicItem }>(
       `/boards/${boardId}/items/${itemId}`,
@@ -899,9 +890,7 @@ const saveAll = async () => {
       payload.deskripsi = editDeskripsi.value;
     if (editEstimate.value !== (item.value.original_estimate ?? ""))
       payload.original_estimate = editEstimate.value;
-
-    if (Object.keys(payload).length === 0) return;
-
+    if (!Object.keys(payload).length) return;
     const res = await api.put<{ data: EpicItem }>(
       `/boards/${boardId}/items/${itemId}`,
       payload,
