@@ -29,7 +29,7 @@
       </TopbarComponent>
 
       <div v-if="isOnBoardRoute" class="board-route-area">
-        <RouterView @updateTab="currentTab = $event" />
+        <RouterView ref="boardViewRef" @updateTab="currentTab = $event" />
       </div>
 
       <main v-else class="content-area">
@@ -185,6 +185,9 @@ const authStore = useAuthStore();
 const spaceStore = useSpaceStore();
 const workflowStore = useWorkflowStore();
 
+// Ref to the board view component so we can call refreshEpics on it
+const boardViewRef = ref<any>(null);
+
 const activeView = ref<"dashboard" | "space">("dashboard");
 const activeSpaceId = ref<number>(0);
 const activeBoardId = ref<number>(0);
@@ -227,7 +230,7 @@ const boardMembers = computed(() => {
   const space = spaceStore.spaces.find((s) => s.id === activeSpaceId.value);
   if (!space) return [];
   const members = space.member_emails ?? [];
-  const list = members.map((email: string, i: number) => ({
+  return members.map((email: string, i: number) => ({
     id: i + 100,
     name: email.split("@")[0],
     email,
@@ -376,9 +379,15 @@ const handleCreateClick = (): void => {
   }
 };
 
-const onEpicCreated = (epic: Epic): void => {};
+// After epic created, refresh the board's epic list
+const onEpicCreated = async (epic: Epic): Promise<void> => {
+  await boardViewRef.value?.refreshEpics?.();
+};
 
-const handleTaskCreated = (task: any): void => {};
+// After task created, refresh the board's epic list (for timeline) and backlog
+const handleTaskCreated = async (task: any): Promise<void> => {
+  await boardViewRef.value?.refreshEpics?.();
+};
 
 watch(
   () => route.params.boardId,

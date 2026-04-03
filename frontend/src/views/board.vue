@@ -315,33 +315,12 @@ const emit = defineEmits<{
   (e: "updateTab", val: "timeline" | "backlog"): void;
 }>();
 
-watch(activeTab, (val) => emit("updateTab", val), { immediate: true });
-
-onMounted(async () => {
-  await workflowStore.fetchStatuses();
-  await ambilBoard();
-  await ambilEpics();
-});
-
-watch(
-  () => route.params.boardId,
-  async () => {
-    expandedEpics.value = [];
-    await ambilBoard();
-    await ambilEpics();
-  },
-);
-
 const viewModes = [
   { label: "Today", value: "today" },
   { label: "Weeks", value: "weeks" },
   { label: "Months", value: "months" },
   { label: "Quarters", value: "quarters" },
 ];
-
-const toggleUserFilter = (userId: number) => {
-  filterUserId.value = filterUserId.value === userId ? null : userId;
-};
 
 const epicOptions = computed(() => ["All", ...epics.value.map((e) => e.judul)]);
 
@@ -517,17 +496,21 @@ const toggleExpandEpic = (epicId: number): void => {
   else expandedEpics.value.splice(idx, 1);
 };
 
+// ── Data fetching ──────────────────────────────────────────────────────────
+// IMPORTANT: ambilBoard & ambilEpics must be declared BEFORE the watch/onMounted
+// that reference them, to avoid "Cannot access before initialization" errors.
+
 const ambilBoard = async (): Promise<void> => {
   try {
     const membersRes = await api.get(`/boards/${boardId.value}/members`);
     boardMembers.value = membersRes.data;
-
     const res = await api.get<Board>(`/boards/${boardId.value}`);
     board.value = res.data;
   } catch (err) {
     console.error("Gagal ambil board:", err);
   }
 };
+
 const ambilEpics = async (): Promise<void> => {
   loadingEpics.value = true;
   try {
@@ -539,6 +522,38 @@ const ambilEpics = async (): Promise<void> => {
     loadingEpics.value = false;
   }
 };
+
+// Expose refreshEpics so dashboard.vue can call it after create epic/task
+const refreshEpics = async (): Promise<void> => {
+  await ambilEpics();
+};
+
+defineExpose({ refreshEpics });
+
+// Watch tab changes — refresh epics when switching back to timeline
+watch(activeTab, (val) => {
+  emit("updateTab", val);
+  if (val === "timeline") {
+    ambilEpics();
+  }
+});
+
+// Refresh when navigating to a different board via sidebar
+watch(
+  () => route.params.boardId,
+  async () => {
+    expandedEpics.value = [];
+    await ambilBoard();
+    await ambilEpics();
+  },
+);
+
+onMounted(async () => {
+  await workflowStore.fetchStatuses();
+  await ambilBoard();
+  await ambilEpics();
+  emit("updateTab", activeTab.value);
+});
 </script>
 
 <style scoped>
