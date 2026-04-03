@@ -54,7 +54,7 @@ class BacklogController extends Controller
             'judul'             => 'required|string|max:255',
             'type'              => 'required|in:story,task,qa_task,bug',
             'priority'          => 'required|in:highest,high,medium,low,lowest',
-            'epic_id'           => 'nullable|exists:epics,id', 
+            'epic_id'           => 'nullable|exists:epics,id',
             'labels'            => 'nullable|array|max:5',
             'labels.*'          => 'string|max:50',
             'start_date'        => 'nullable|date',
@@ -68,17 +68,16 @@ class BacklogController extends Controller
             'attachments'       => 'nullable|array',
             'attachments.*'     => 'file|mimes:jpg,jpeg,png,gif,mp4,mov,avi|max:51200',
         ], [
-            'type.required' => 'Tipe task harus dipilih',
-            'type.in' => 'Tipe task tidak valid',
+            'type.required'     => 'Tipe task harus dipilih',
+            'type.in'           => 'Tipe task tidak valid',
             'priority.required' => 'Prioritas harus dipilih',
-            'priority.in' => 'Prioritas tidak valid',
-            'judul.required' => 'Judul task wajib diisi',
+            'priority.in'       => 'Prioritas tidak valid',
+            'judul.required'    => 'Judul task wajib diisi',
         ]);
 
-        $statusValue = $this->resolveStatus($request->status, 'to_do');
+        $statusValue        = $this->resolveStatus($request->status, 'to_do');
         $resolvedAssigneeId = $this->resolveAssigneeId($request->assignee_id, $request->user()->id);
-
-        $kode = $this->generateKode($board->space->key, $boardId);
+        $kode               = $this->generateKode($board->space->key, $boardId);
 
         $item = EpicItem::create([
             'epic_id'           => $request->epic_id,
@@ -134,6 +133,13 @@ class BacklogController extends Controller
             ], 422);
         }
 
+        if ($statusValue === 'done_by_qa' && empty($item->epic_id)) {
+            return response()->json([
+                'message'     => 'Cannot set "Done by QA" — please assign this item to an epic first.',
+                'error_code'  => 'NO_EPIC_FOR_DONE_BY_QA',
+            ], 422);
+        }
+
         $item->update(['status' => $statusValue]);
 
         return response()->json(['message' => 'Status updated', 'data' => $item]);
@@ -171,6 +177,7 @@ class BacklogController extends Controller
         ]);
     }
 
+
     private function generateKode(string $spaceKey, int $boardId): string
     {
         $maxEpic = Epic::where('board_id', $boardId)
@@ -188,33 +195,22 @@ class BacklogController extends Controller
 
     private function resolveAssigneeId(mixed $value, int $currentUserId): ?int
     {
-        if (empty($value)) {
-            return null;
-        }
+        if (empty($value)) return null;
 
         if (is_string($value) && str_contains($value, '@')) {
-            $user = User::where('email', $value)->first();
-            return $user?->id;
+            return User::where('email', $value)->first()?->id;
         }
 
         $numericId = (int) $value;
-        if ($numericId === $currentUserId) {
-            return $currentUserId;
-        }
-
-        return User::find($numericId)?->id;
+        return $numericId === $currentUserId ? $currentUserId : User::find($numericId)?->id;
     }
 
     private function resolveStatus(?string $status, ?string $default = null): ?string
     {
-        if (empty($status)) {
-            return $default;
-        }
+        if (empty($status)) return $default;
 
         $hardcoded = ['to_do', 'in_progress', 'done_by_dev', 'testing', 'done_by_qa'];
-        if (in_array($status, $hardcoded)) {
-            return $status;
-        }
+        if (in_array($status, $hardcoded)) return $status;
 
         $workflowStatus = WorkflowStatus::where('value', $status)->first();
         if ($workflowStatus) {

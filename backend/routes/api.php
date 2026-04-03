@@ -13,6 +13,7 @@ use App\Http\Controllers\SprintController;
 use App\Http\Controllers\BacklogController;
 use App\Http\Controllers\ItemDetailController;
 use App\Http\Controllers\WorkflowController;
+use App\Http\Controllers\NotificationController;
 
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -67,15 +68,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/boards/{boardId}/items/{itemId}', [ItemDetailController::class, 'update']);
     Route::post('/boards/{board}/items/{item}/children', [ItemDetailController::class, 'storeChild']);
     Route::get('/boards/{boardId}/items/{itemId}/history', [ItemDetailController::class, 'history']);
-    
 
     // Dashboard
     Route::get('/spaces/{spaceId}/dashboard', [DashboardController::class, 'index']);
     Route::get('/spaces/{spaceId}/recent', [RecentController::class, 'index']);
 
-    // Workflow Settings (admin manage statuses)
+    // Workflow Settings
     Route::post('/workflow/statuses', [WorkflowController::class, 'store']);
     Route::put('/workflow/statuses/{id}', [WorkflowController::class, 'update']);
     Route::delete('/workflow/statuses/{id}', [WorkflowController::class, 'destroy']);
     Route::post('/workflow/statuses/reorder', [WorkflowController::class, 'reorder']);
+
+    // Notifications
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
 });

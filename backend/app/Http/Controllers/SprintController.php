@@ -44,7 +44,7 @@ class SprintController extends Controller
         })->findOrFail($boardId);
 
         $request->validate([
-            'nama'       => 'required|string|max:100',
+            'nama'       => 'nullable|string|max:100',
             'start_date' => 'nullable|date',
             'end_date'   => 'nullable|date|after_or_equal:start_date',
         ]);
@@ -91,13 +91,36 @@ class SprintController extends Controller
     {
         $sprint = Sprint::where('board_id', $boardId)->findOrFail($sprintId);
 
-        $sprint->update(['status' => 'completed']);
+        $allItems = EpicItem::where('sprint_id', $sprintId)->get();
 
-        EpicItem::where('sprint_id', $sprintId)
-            ->where('status', '!=', 'done_by_qa')
+        $doneItems  = $allItems->where('status', 'done_by_qa');
+        $undoneItems = $allItems->where('status', '!=', 'done_by_qa');
+
+        EpicItem::whereIn('id', $doneItems->pluck('id'))
             ->update(['sprint_id' => null]);
 
-        return response()->json(['message' => 'Sprint selesai']);
+        if ($undoneItems->isNotEmpty()) {
+            $targetSprint = $this->findOrCreateNextSprint($boardId, $sprintId);
+
+            EpicItem::whereIn('id', $undoneItems->pluck('id'))
+                ->update(['sprint_id' => $targetSprint->id]);
+        }
+
+        $sprint->update(['status' => 'completed']);
+
+        $nextSprint = isset($targetSprint)
+            ? $targetSprint->load([
+                'items' => fn($q) => $q->whereNull('parent_id')
+                    ->with(['epic', 'assignee', 'children.assignee', 'children.epic'])
+              ])
+            : null;
+
+        return response()->json([
+            'message'      => 'Sprint selesai',
+            'done_count'   => $doneItems->count(),
+            'moved_count'  => $undoneItems->count(),
+            'next_sprint'  => $nextSprint,
+        ]);
     }
 
     public function destroy(Request $request, $boardId, $sprintId)
@@ -109,5 +132,26 @@ class SprintController extends Controller
         $sprint->delete();
 
         return response()->json(['message' => 'Sprint dihapus']);
+    }
+
+    private function findOrCreateNextSprint(int $boardId, int $excludeSprintId): Sprint
+    {
+        $next = Sprint::where('board_id', $boardId)
+            ->whereIn('status', ['planning', 'active'])
+            ->where('id', '!=', $excludeSprintId)
+            ->orderBy('created_at', 'asc')
+            ->first();
+
+        if ($next) {
+            return $next;
+        }
+
+        $count = Sprint::where('board_id', $boardId)->count();
+
+        return Sprint::create([
+            'board_id' => $boardId,
+            'nama'     => 'Sprint ' . ($count + 1),
+            'status'   => 'planning',
+        ]);
     }
 }

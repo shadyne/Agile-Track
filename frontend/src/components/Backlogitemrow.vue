@@ -50,7 +50,6 @@
     </div>
 
     <div class="row-right">
-      <!-- Epic dengan dropdown -->
       <v-menu location="bottom end">
         <template #activator="{ props: menuProps }">
           <span
@@ -111,7 +110,6 @@
         </v-list>
       </v-menu>
 
-      <!-- Status dropdown -->
       <v-menu location="bottom end">
         <template #activator="{ props: menuProps }">
           <span
@@ -124,17 +122,48 @@
             <v-icon icon="mdi-chevron-down" size="10" />
           </span>
         </template>
-        <v-list density="compact" min-width="180" rounded="lg" elevation="3">
-          <v-list-item
-            v-for="s in workflowStore.statuses"
-            :key="s.value"
-            @click="emit('statusChange', s.value)"
-          >
-            <template #prepend>
-              <span class="status-dot" :style="{ backgroundColor: s.color }" />
-            </template>
-            <v-list-item-title>{{ s.label }}</v-list-item-title>
-          </v-list-item>
+        <v-list density="compact" min-width="220" rounded="lg" elevation="3">
+          <div v-if="!item.epic_id" class="status-no-epic-banner">
+            <v-icon icon="mdi-information-outline" size="14" color="#D97706" />
+            <span>Assign an epic to unlock <strong>Done by QA</strong></span>
+          </div>
+
+          <template v-for="s in workflowStore.statuses" :key="s.value">
+            <v-tooltip
+              v-if="isDoneByQa(s.value) && !item.epic_id"
+              location="right"
+              text="Assign item to an epic first to use this status"
+            >
+              <template #activator="{ props: tooltipProps }">
+                <v-list-item
+                  v-bind="tooltipProps"
+                  class="status-locked-item"
+                  disabled
+                >
+                  <template #prepend>
+                    <span
+                      class="status-dot"
+                      :style="{ backgroundColor: s.color }"
+                    />
+                  </template>
+                  <v-list-item-title class="status-locked-text">
+                    {{ s.label }}
+                    <v-icon icon="mdi-lock-outline" size="12" class="ml-1" />
+                  </v-list-item-title>
+                </v-list-item>
+              </template>
+            </v-tooltip>
+
+            <v-list-item v-else @click="handleStatusChange(s.value)">
+              <template #prepend>
+                <span
+                  class="status-dot"
+                  :style="{ backgroundColor: s.color }"
+                />
+              </template>
+              <v-list-item-title>{{ s.label }}</v-list-item-title>
+            </v-list-item>
+          </template>
         </v-list>
       </v-menu>
 
@@ -156,6 +185,17 @@
       </v-avatar>
     </div>
   </div>
+
+  <v-snackbar
+    v-model="showNoEpicError"
+    color="warning"
+    timeout="3500"
+    location="bottom right"
+  >
+    <v-icon icon="mdi-alert-outline" class="mr-2" />
+    Please assign this item to an <strong>epic</strong> before marking as Done
+    by QA.
+  </v-snackbar>
 
   <template v-if="expanded && item.children?.length">
     <div
@@ -188,7 +228,6 @@
         </template>
       </div>
       <div class="row-right">
-        <!-- Epic untuk child item (dengan dropdown) -->
         <v-menu location="bottom end">
           <template #activator="{ props: menuProps }">
             <span
@@ -252,12 +291,70 @@
           </v-list>
         </v-menu>
 
-        <span
-          class="status-badge"
-          :style="workflowStore.getStatusStyle(child.status)"
-        >
-          {{ workflowStore.getStatusLabel(child.status) }}
-        </span>
+        <v-menu location="bottom end">
+          <template #activator="{ props: menuProps }">
+            <span
+              class="status-badge"
+              :style="workflowStore.getStatusStyle(child.status)"
+              v-bind="menuProps"
+              style="cursor: pointer"
+            >
+              {{ workflowStore.getStatusLabel(child.status) }}
+              <v-icon icon="mdi-chevron-down" size="10" />
+            </span>
+          </template>
+          <v-list density="compact" min-width="220" rounded="lg" elevation="3">
+            <div v-if="!child.epic_id" class="status-no-epic-banner">
+              <v-icon
+                icon="mdi-information-outline"
+                size="14"
+                color="#D97706"
+              />
+              <span>Assign an epic to unlock <strong>Done by QA</strong></span>
+            </div>
+
+            <template v-for="s in workflowStore.statuses" :key="s.value">
+              <v-tooltip
+                v-if="isDoneByQa(s.value) && !child.epic_id"
+                location="right"
+                text="Assign item to an epic first to use this status"
+              >
+                <template #activator="{ props: tooltipProps }">
+                  <v-list-item
+                    v-bind="tooltipProps"
+                    class="status-locked-item"
+                    disabled
+                  >
+                    <template #prepend>
+                      <span
+                        class="status-dot"
+                        :style="{ backgroundColor: s.color }"
+                      />
+                    </template>
+                    <v-list-item-title class="status-locked-text">
+                      {{ s.label }}
+                      <v-icon icon="mdi-lock-outline" size="12" class="ml-1" />
+                    </v-list-item-title>
+                  </v-list-item>
+                </template>
+              </v-tooltip>
+
+              <v-list-item
+                v-else
+                @click="emit('statusChange', s.value, child.id)"
+              >
+                <template #prepend>
+                  <span
+                    class="status-dot"
+                    :style="{ backgroundColor: s.color }"
+                  />
+                </template>
+                <v-list-item-title>{{ s.label }}</v-list-item-title>
+              </v-list-item>
+            </template>
+          </v-list>
+        </v-menu>
+
         <span class="estimate-col">{{ child.original_estimate || "0m" }}</span>
         <span
           class="priority-dot"
@@ -288,8 +385,9 @@ const props = defineProps<{
   boardId?: number;
   draggable?: boolean;
 }>();
+
 const emit = defineEmits<{
-  (e: "statusChange", status: string): void;
+  (e: "statusChange", status: string, itemId?: number): void;
   (e: "epicChange", itemId: number, epicId: number | null): void;
   (e: "refresh"): void;
 }>();
@@ -297,11 +395,25 @@ const emit = defineEmits<{
 const workflowStore = useWorkflowStore();
 const expanded = ref(false);
 const boardEpics = ref<Epic[]>([]);
+const showNoEpicError = ref(false);
+
+const isDoneByQa = (statusValue: string): boolean => {
+  if (statusValue === "done_by_qa") return true;
+  const ws = workflowStore.statuses.find((s) => s.value === statusValue);
+  return ws?.category === "Done" && statusValue === "done_by_qa";
+};
+
+const handleStatusChange = (statusValue: string) => {
+  if (isDoneByQa(statusValue) && !props.item.epic_id) {
+    showNoEpicError.value = true;
+    return;
+  }
+  emit("statusChange", statusValue);
+};
 
 const ambilEpics = async () => {
   if (!props.boardId && !props.item.board_id) return;
   const boardId = props.boardId || props.item.board_id;
-
   try {
     const res = await api.get<Epic[]>(`/boards/${boardId}/epics`);
     boardEpics.value = res.data;
@@ -315,7 +427,6 @@ const handleEpicChange = async (epicId: number | null) => {
     await api.put(`/boards/${props.item.board_id}/items/${props.item.id}`, {
       epic_id: epicId,
     });
-
     if (epicId) {
       const selectedEpic = boardEpics.value.find((e) => e.id === epicId);
       props.item.epic = selectedEpic || null;
@@ -324,7 +435,6 @@ const handleEpicChange = async (epicId: number | null) => {
       props.item.epic = null;
       props.item.epic_id = null;
     }
-
     emit("refresh");
   } catch (error) {
     console.error("Gagal update epic:", error);
@@ -339,7 +449,6 @@ const handleChildEpicChange = async (
     await api.put(`/boards/${props.item.board_id}/items/${childId}`, {
       epic_id: epicId,
     });
-
     const child = props.item.children?.find((c) => c.id === childId);
     if (child) {
       if (epicId) {
@@ -351,7 +460,6 @@ const handleChildEpicChange = async (
         child.epic_id = null;
       }
     }
-
     emit("refresh");
   } catch (error) {
     console.error("Gagal update epic child:", error);
@@ -395,6 +503,18 @@ const getLabelColor = (label: string) => {
   const colors = ["#B45309", "#059669", "#1D4ED8", "#7C3AED", "#DC2626"];
   return colors[label.charCodeAt(0) % colors.length];
 };
+
+const onDragStart = (e: DragEvent) => {
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData(
+      "text/plain",
+      JSON.stringify({ id: props.item.id, type: props.item.type }),
+    );
+  }
+};
+
+const onDragEnd = () => {};
 
 onMounted(() => {
   ambilEpics();
@@ -495,14 +615,24 @@ onMounted(() => {
   max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .epic-badge-none {
   font-size: 10px;
   color: #8290a4;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
 }
 .epic-badge-none:hover {
-  color: #020f40;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.05);
 }
 
 .status-badge {
@@ -525,6 +655,29 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
+.status-no-epic-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #fffbeb;
+  border-bottom: 1px solid #fde68a;
+  font-size: 11px;
+  color: #92400e;
+  line-height: 1.4;
+}
+
+.status-locked-item {
+  opacity: 0.45 !important;
+}
+.status-locked-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
 .estimate-col {
   font-size: 11px;
   font-weight: 700;
@@ -537,37 +690,5 @@ onMounted(() => {
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
-}
-.epic-badge {
-  font-size: 10px;
-  font-weight: 700;
-  color: #7c3aed;
-  background: rgba(124, 58, 237, 0.1);
-  padding: 2px 8px;
-  border-radius: 4px;
-  white-space: nowrap;
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.epic-badge-none {
-  font-size: 10px;
-  color: #8290a4;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.epic-badge-none:hover {
-  color: #7c3aed;
-  background: rgba(124, 58, 237, 0.05);
 }
 </style>

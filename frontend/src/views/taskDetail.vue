@@ -1,7 +1,6 @@
 <template>
   <div class="epic-detail-layout">
     <div class="epic-detail-main">
-      <!-- Breadcrumb + Board Tabs -->
       <div
         style="
           padding: 16px 28px 0;
@@ -333,7 +332,6 @@
           </div>
         </div>
 
-        <!-- Sidebar (unchanged) -->
         <div class="epic-sidebar">
           <div class="detail-section-title">Details</div>
 
@@ -704,14 +702,12 @@ const typeOptions = [
   { label: "QA Task", value: "qa_task" },
 ];
 
-// ── Kembali ke board dengan tab yang dipilih (query param) ──────────────────
 const goToBoard = (tab: "timeline" | "backlog") => {
   router.push({
     path: `/board/${boardId}`,
     query: tab === "timeline" ? {} : { tab },
   });
 };
-// ────────────────────────────────────────────────────────────────────────────
 
 const progressPersen = computed(() => {
   if (!item.value?.children?.length) return 0;

@@ -112,6 +112,7 @@
               variant="outlined"
               color="success"
               style="font-size: 12px; font-weight: 700"
+              :loading="completingSprintId === sprint.id"
               @click="completeSprint(sprint)"
             >
               Complete Sprint
@@ -306,6 +307,15 @@
     >
       {{ errorMessage }}
     </v-snackbar>
+
+    <v-snackbar
+      v-model="showSuccess"
+      color="success"
+      timeout="4000"
+      location="bottom right"
+    >
+      {{ successMessage }}
+    </v-snackbar>
   </div>
 </template>
 
@@ -328,9 +338,8 @@ const props = defineProps<{
   epics: Epic[];
   boardMembers?: { id: number; name: string; email: string }[];
 }>();
-const emit = defineEmits<{
-  (e: "refresh"): void;
-}>();
+
+const emit = defineEmits<{ (e: "refresh"): void }>();
 
 const loading = ref(false);
 const backlogItems = ref<EpicItem[]>([]);
@@ -340,16 +349,17 @@ const filterUserId = ref<number | null>(null);
 const filterEpic = ref("All");
 const filterType = ref("All");
 const filterLabel = ref("All");
-const board = ref<Board | null>(null);
 const showCreateTask = ref(false);
 const createTaskSprintId = ref<number | null>(null);
 const showStartSprint = ref(false);
 const selectedSprint = ref<Sprint | null>(null);
 const startingSprintLoading = ref(false);
+const completingSprintId = ref<number | null>(null);
 const startSprintForm = ref({ start_date: "", end_date: "" });
-
 const showError = ref(false);
 const errorMessage = ref("");
+const showSuccess = ref(false);
+const successMessage = ref("");
 const isMoving = ref(false);
 const dragOverSprintId = ref<number | null>(null);
 const draggingItem = ref<EpicItem | null>(null);
@@ -357,117 +367,12 @@ const draggingItem = ref<EpicItem | null>(null);
 const addTask = (task: EpicItem) => {
   backlogItems.value.unshift(task);
 };
-
-defineExpose({
-  addTask,
-});
-
-const handleEpicChange = (itemId: number, epicId: number | null) => {
-  refreshData();
-};
-
-const refreshData = async () => {
-  await ambilData();
-};
-
-const handleDragStart = (event: DragEvent, item: EpicItem) => {
-  if (isMoving.value) {
-    event.preventDefault();
-    return;
-  }
-
-  draggingItem.value = item;
-
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData(
-      "text/plain",
-      JSON.stringify({
-        id: item.id,
-        type: item.type,
-      }),
-    );
-    event.dataTransfer.dropEffect = "move";
-  }
-};
-
-const handleDragEnd = () => {
-  draggingItem.value = null;
-  dragOverSprintId.value = null;
-};
-
-const handleDragOver = (sprintId: number) => {
-  if (draggingItem.value && !isMoving.value) {
-    dragOverSprintId.value = sprintId;
-  }
-};
-
-const handleDragLeave = () => {
-  dragOverSprintId.value = null;
-};
-
-const handleDropToSprint = async (event: DragEvent, targetSprintId: number) => {
-  event.preventDefault();
-  dragOverSprintId.value = null;
-
-  if (!draggingItem.value || isMoving.value) return;
-
-  const movedItem = draggingItem.value;
-
-  if (movedItem.sprint_id !== null) {
-    errorMessage.value = "Item sudah berada di sprint";
-    showError.value = true;
-    return;
-  }
-
-  isMoving.value = true;
-
-  const originalBacklog = [...backlogItems.value];
-  const originalSprints = JSON.parse(JSON.stringify(sprints.value));
-
-  const targetSprint = sprints.value.find((s) => s.id === targetSprintId);
-  if (!targetSprint) {
-    isMoving.value = false;
-    return;
-  }
-
-  try {
-    const backlogIndex = backlogItems.value.findIndex(
-      (i) => i.id === movedItem.id,
-    );
-    if (backlogIndex !== -1) {
-      backlogItems.value.splice(backlogIndex, 1);
-    }
-
-    movedItem.sprint_id = targetSprintId;
-    targetSprint.items.unshift(movedItem);
-
-    await api.patch(
-      `/boards/${props.boardId}/backlog/items/${movedItem.id}/move-to-sprint`,
-      { sprint_id: targetSprintId },
-    );
-
-    await refreshData();
-  } catch (err: any) {
-    console.error("Gagal memindahkan item:", err);
-    errorMessage.value =
-      err.response?.data?.message ?? "Gagal memindahkan task";
-    showError.value = true;
-
-    backlogItems.value = originalBacklog;
-    sprints.value = originalSprints;
-  } finally {
-    isMoving.value = false;
-    draggingItem.value = null;
-  }
-};
+defineExpose({ addTask });
 
 const allLabels = computed<string[]>(() => {
   const set = new Set<string>();
   [...backlogItems.value, ...sprints.value.flatMap((s) => s.items)].forEach(
-    (item) => {
-      item.labels?.forEach((l) => set.add(l));
-    },
+    (item) => item.labels?.forEach((l) => set.add(l)),
   );
   return ["All", ...Array.from(set)];
 });
@@ -476,9 +381,13 @@ const epicFilterOptions = computed(() => [
   "All",
   ...props.epics.map((e) => e.judul),
 ]);
-
 const typeFilterOptions = ["All", "Task", "Story", "Bug", "QA Task"];
 const labelFilterOptions = allLabels;
+
+const availableLabels = computed(() => {
+  const labels = backlogItems.value.flatMap((item) => item.labels || []);
+  return [...new Set(labels)];
+});
 
 const applyFilters = (items: EpicItem[]): EpicItem[] => {
   return items.filter((item) => {
@@ -495,20 +404,16 @@ const applyFilters = (items: EpicItem[]): EpicItem[] => {
       };
       if (item.type !== map[filterType.value]) return false;
     }
-    if (filterLabel.value !== "All") {
-      if (!item.labels?.includes(filterLabel.value)) return false;
-    }
+    if (
+      filterLabel.value !== "All" &&
+      !item.labels?.includes(filterLabel.value)
+    )
+      return false;
     return true;
   });
 };
 
-const availableLabels = computed(() => {
-  const labels = backlogItems.value.flatMap((item) => item.labels || []);
-  return [...new Set(labels)];
-});
-
 const filteredBacklog = computed(() => applyFilters(backlogItems.value));
-
 const filteredSprints = computed(() =>
   sprints.value.map((sprint) => ({
     ...sprint,
@@ -520,69 +425,53 @@ const toggleUserFilter = (userId: number) => {
   filterUserId.value = filterUserId.value === userId ? null : userId;
 };
 
-const toggleSection = (id: number) => {
-  const idx = expandedSections.value.indexOf(id);
-  if (idx === -1) expandedSections.value.push(id);
-  else expandedSections.value.splice(idx, 1);
+const getTotalMinutes = (items: EpicItem[]): number => {
+  let total = 0;
+  items.forEach((item) => {
+    if (!item.original_estimate) return;
+    const e = item.original_estimate;
+    const mo = e.match(/(\d+)\s*mo/);
+    if (mo) total += parseInt(mo[1]) * 30 * 8 * 60;
+    const w = e.match(/(\d+)\s*w/);
+    if (w) total += parseInt(w[1]) * 7 * 8 * 60;
+    const d = e.match(/(\d+)\s*d/);
+    if (d) total += parseInt(d[1]) * 8 * 60;
+    const h = e.match(/(\d+)\s*h/);
+    if (h) total += parseInt(h[1]) * 60;
+    const m = e.match(/(\d+)\s*m(?!o)/);
+    if (m) total += parseInt(m[1]);
+  });
+  return total;
+};
+const totalMonths = (items: EpicItem[]) => {
+  const t = getTotalMinutes(items);
+  return `${Math.floor(t / (30 * 8 * 60))}mo`;
+};
+const totalDays = (items: EpicItem[]) => {
+  const t = getTotalMinutes(items);
+  const r = t % (30 * 8 * 60);
+  return `${Math.floor(r / (8 * 60))}d`;
+};
+const totalHours = (items: EpicItem[]) => {
+  const t = getTotalMinutes(items);
+  const r = t % (30 * 8 * 60);
+  const d = r % (8 * 60);
+  return `${Math.floor(d / 60)}h`;
 };
 
 const sprintDateRange = (sprint: Sprint): string => {
   if (!sprint.start_date || !sprint.end_date) return "";
   const fmt = (d: string) => {
-    const date = new Date(d);
-    return `${date.getDate()} ${date.toLocaleString("en", { month: "short" })}`;
+    const dt = new Date(d);
+    return `${dt.getDate()} ${dt.toLocaleString("en", { month: "short" })}`;
   };
   return `${fmt(sprint.start_date)} – ${fmt(sprint.end_date)}`;
 };
 
-const getTotalMinutes = (items: EpicItem[]): number => {
-  let totalMinutes = 0;
-
-  items.forEach((item) => {
-    if (!item.original_estimate) return;
-
-    const estimate = item.original_estimate;
-
-    const monthsMatch = estimate.match(/(\d+)\s*mo/);
-    if (monthsMatch) totalMinutes += parseInt(monthsMatch[1]) * 30 * 8 * 60;
-
-    const weeksMatch = estimate.match(/(\d+)\s*w/);
-    if (weeksMatch) totalMinutes += parseInt(weeksMatch[1]) * 7 * 8 * 60;
-
-    const daysMatch = estimate.match(/(\d+)\s*d/);
-    if (daysMatch) totalMinutes += parseInt(daysMatch[1]) * 8 * 60;
-
-    const hoursMatch = estimate.match(/(\d+)\s*h/);
-    if (hoursMatch) totalMinutes += parseInt(hoursMatch[1]) * 60;
-
-    const minutesMatch = estimate.match(/(\d+)\s*m(?!o)/);
-    if (minutesMatch) totalMinutes += parseInt(minutesMatch[1]);
-  });
-
-  return totalMinutes;
-};
-
-const totalMonths = (items: EpicItem[]): string => {
-  const totalMinutes = getTotalMinutes(items);
-  const months = Math.floor(totalMinutes / (30 * 8 * 60));
-  return months > 0 ? `${months}mo` : "0mo";
-};
-
-const totalDays = (items: EpicItem[]): string => {
-  const totalMinutes = getTotalMinutes(items);
-  const months = Math.floor(totalMinutes / (30 * 8 * 60));
-  const remainingAfterMonths = totalMinutes % (30 * 8 * 60);
-  const days = Math.floor(remainingAfterMonths / (8 * 60));
-  return days > 0 ? `${days}d` : "0d";
-};
-
-const totalHours = (items: EpicItem[]): string => {
-  const totalMinutes = getTotalMinutes(items);
-  const months = Math.floor(totalMinutes / (30 * 8 * 60));
-  const remainingAfterMonths = totalMinutes % (30 * 8 * 60);
-  const days = Math.floor(remainingAfterMonths / (8 * 60));
-  const hours = Math.floor((remainingAfterMonths % (8 * 60)) / 60);
-  return hours > 0 ? `${hours}h` : "0h";
+const toggleSection = (id: number) => {
+  const idx = expandedSections.value.indexOf(id);
+  if (idx === -1) expandedSections.value.push(id);
+  else expandedSections.value.splice(idx, 1);
 };
 
 const ambilData = async () => {
@@ -596,12 +485,15 @@ const ambilData = async () => {
         expandedSections.value.push(s.id);
     });
   } catch (err) {
-    console.error("Gagal ambil backlog:", err);
     errorMessage.value = "Gagal memuat data backlog";
     showError.value = true;
   } finally {
     loading.value = false;
   }
+};
+
+const refreshData = async () => {
+  await ambilData();
 };
 
 const openCreateTask = (sprintId: number | null = null) => {
@@ -624,16 +516,13 @@ const openCreateSprint = async () => {
     const count = sprints.value.length + 1;
     const res = await api.post<{ data: Sprint }>(
       `/boards/${props.boardId}/sprints`,
-      {
-        nama: `Sprint ${count}`,
-      },
+      { nama: `Sprint ${count}` },
     );
     const newSprint = res.data.data;
     (newSprint as any).items = [];
     sprints.value.push(newSprint as any);
     expandedSections.value.push(newSprint.id);
   } catch (err) {
-    console.error("Gagal buat sprint:", err);
     errorMessage.value = "Gagal membuat sprint";
     showError.value = true;
   }
@@ -664,7 +553,6 @@ const confirmStartSprint = async () => {
     if (idx !== -1) sprints.value[idx].status = "active";
     showStartSprint.value = false;
   } catch (err: any) {
-    console.error("Gagal start sprint:", err);
     errorMessage.value = err.response?.data?.message ?? "Gagal memulai sprint";
     showError.value = true;
   } finally {
@@ -673,19 +561,52 @@ const confirmStartSprint = async () => {
 };
 
 const completeSprint = async (sprint: Sprint) => {
+  completingSprintId.value = sprint.id;
   try {
-    await api.post(`/boards/${props.boardId}/sprints/${sprint.id}/complete`);
-    const undone = sprint.items.filter((i) => i.status !== "done_by_qa");
-    backlogItems.value.push(...undone);
+    const res = await api.post<{
+      message: string;
+      done_count: number;
+      moved_count: number;
+      next_sprint: (Sprint & { items: EpicItem[] }) | null;
+    }>(`/boards/${props.boardId}/sprints/${sprint.id}/complete`);
+
+    const { done_count, moved_count, next_sprint } = res.data;
+
     sprints.value = sprints.value.filter((s) => s.id !== sprint.id);
     expandedSections.value = expandedSections.value.filter(
       (id) => id !== sprint.id,
     );
+
+    if (next_sprint) {
+      const existingIdx = sprints.value.findIndex(
+        (s) => s.id === next_sprint.id,
+      );
+      if (existingIdx !== -1) {
+        sprints.value[existingIdx] = next_sprint;
+      } else {
+        sprints.value.push(next_sprint);
+        expandedSections.value.push(next_sprint.id);
+      }
+    }
+
+    const parts: string[] = [];
+    if (done_count > 0) parts.push(`${done_count} item selesai`);
+    if (moved_count > 0) {
+      const dest = next_sprint
+        ? `dipindah ke "${next_sprint.nama}"`
+        : "dipindah ke sprint baru";
+      parts.push(`${moved_count} item ${dest}`);
+    }
+    successMessage.value = parts.length
+      ? parts.join(", ") + "."
+      : "Sprint selesai.";
+    showSuccess.value = true;
   } catch (err: any) {
-    console.error("Gagal complete sprint:", err);
     errorMessage.value =
       err.response?.data?.message ?? "Gagal menyelesaikan sprint";
     showError.value = true;
+  } finally {
+    completingSprintId.value = null;
   }
 };
 
@@ -698,7 +619,6 @@ const deleteSprint = async (sprint: Sprint) => {
       (id) => id !== sprint.id,
     );
   } catch (err: any) {
-    console.error("Gagal hapus sprint:", err);
     errorMessage.value =
       err.response?.data?.message ?? "Gagal menghapus sprint";
     showError.value = true;
@@ -725,11 +645,86 @@ const updateItemStatus = async (item: EpicItem, status: string) => {
     );
   } catch (err: any) {
     item.status = oldStatus;
-    console.error("Gagal update status:", err);
-    const msg = err.response?.data?.message ?? "Status tidak valid";
-    errorMessage.value = msg;
+    const code = err.response?.data?.error_code;
+    if (code === "NO_EPIC_FOR_DONE_BY_QA") {
+      errorMessage.value =
+        "Please assign this item to an epic first before marking as Done by QA.";
+    } else {
+      errorMessage.value = err.response?.data?.message ?? "Status tidak valid";
+    }
     showError.value = true;
   }
+};
+
+const handleDragStart = (event: DragEvent, item: EpicItem) => {
+  if (isMoving.value) {
+    event.preventDefault();
+    return;
+  }
+  draggingItem.value = item;
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(
+      "text/plain",
+      JSON.stringify({ id: item.id, type: item.type }),
+    );
+  }
+};
+const handleDragEnd = () => {
+  draggingItem.value = null;
+  dragOverSprintId.value = null;
+};
+const handleDragOver = (sprintId: number) => {
+  if (draggingItem.value && !isMoving.value) dragOverSprintId.value = sprintId;
+};
+const handleDragLeave = () => {
+  dragOverSprintId.value = null;
+};
+
+const handleDropToSprint = async (event: DragEvent, targetSprintId: number) => {
+  event.preventDefault();
+  dragOverSprintId.value = null;
+  if (!draggingItem.value || isMoving.value) return;
+  const movedItem = draggingItem.value;
+  if (movedItem.sprint_id !== null) {
+    errorMessage.value = "Item sudah berada di sprint";
+    showError.value = true;
+    return;
+  }
+  isMoving.value = true;
+  const originalBacklog = [...backlogItems.value];
+  const originalSprints = JSON.parse(JSON.stringify(sprints.value));
+  const targetSprint = sprints.value.find((s) => s.id === targetSprintId);
+  if (!targetSprint) {
+    isMoving.value = false;
+    return;
+  }
+  try {
+    const backlogIndex = backlogItems.value.findIndex(
+      (i) => i.id === movedItem.id,
+    );
+    if (backlogIndex !== -1) backlogItems.value.splice(backlogIndex, 1);
+    movedItem.sprint_id = targetSprintId;
+    targetSprint.items.unshift(movedItem);
+    await api.patch(
+      `/boards/${props.boardId}/backlog/items/${movedItem.id}/move-to-sprint`,
+      { sprint_id: targetSprintId },
+    );
+    await refreshData();
+  } catch (err: any) {
+    errorMessage.value =
+      err.response?.data?.message ?? "Gagal memindahkan task";
+    showError.value = true;
+    backlogItems.value = originalBacklog;
+    sprints.value = originalSprints;
+  } finally {
+    isMoving.value = false;
+    draggingItem.value = null;
+  }
+};
+
+const handleEpicChange = (_itemId: number, _epicId: number | null) => {
+  refreshData();
 };
 
 onMounted(async () => {
@@ -746,7 +741,6 @@ onMounted(async () => {
   background: white;
   min-height: 0;
 }
-
 .backlog-filters {
   display: flex;
   align-items: center;
@@ -756,12 +750,10 @@ onMounted(async () => {
   flex-wrap: wrap;
   flex-shrink: 0;
 }
-
 .avatar-filter-group {
   display: flex;
   gap: 4px;
 }
-
 .avatar-filter {
   width: 30px;
   height: 30px;
@@ -774,7 +766,6 @@ onMounted(async () => {
   justify-content: center;
   transition: border 0.15s;
 }
-
 .avatar-filter.active {
   border-color: #020f40;
   background: rgba(0, 52, 246, 0.1);
@@ -782,33 +773,28 @@ onMounted(async () => {
 .avatar-filter:hover {
   border-color: #8290a4;
 }
-
 .filter-divider {
   width: 1px;
   height: 24px;
   background: rgba(130, 144, 164, 0.4);
   margin: 0 4px;
 }
-
 .backlog-content {
   flex: 1;
   overflow-y: auto;
   padding: 16px 28px 32px;
   min-height: 0;
 }
-
 .backlog-section {
   margin-bottom: 8px;
   border: 1px solid rgba(130, 144, 164, 0.2);
   border-radius: 8px;
   transition: all 0.2s ease;
 }
-
 .backlog-section.drag-over {
   background: rgba(124, 58, 237, 0.05);
   border: 2px dashed #7c3aed;
 }
-
 .section-header {
   display: flex;
   align-items: center;
@@ -819,7 +805,6 @@ onMounted(async () => {
   gap: 8px;
   flex-wrap: nowrap;
 }
-
 .section-header-left {
   display: flex;
   align-items: center;
@@ -829,14 +814,12 @@ onMounted(async () => {
   overflow: hidden;
   min-width: 0;
 }
-
 .section-header-right {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
-
 .sprint-name-input {
   font-family: "Barlow", sans-serif;
   font-weight: 800;
@@ -851,24 +834,20 @@ onMounted(async () => {
   min-width: 80px;
   max-width: 200px;
 }
-
 .sprint-name-input:hover,
 .sprint-name-input:focus {
   background: rgba(0, 52, 246, 0.05);
 }
-
 .section-title {
   font-family: "Barlow", sans-serif;
   font-weight: 800;
   font-size: 14px;
   color: #020f40;
 }
-
 .section-count {
   font-size: 12px;
   color: #8290a4;
 }
-
 .estimate-text {
   font-size: 11px;
   font-weight: 700;
@@ -876,42 +855,31 @@ onMounted(async () => {
   min-width: 28px;
   text-align: center;
 }
-
 .estimate-active {
   color: #020f40;
 }
-
 .item-list {
   padding: 4px 0;
 }
-
 .empty-section {
   padding: 16px 20px;
   font-size: 13px;
   color: #8290a4;
   text-align: center;
 }
-
 .link-text {
   color: #65a9ec;
   cursor: pointer;
   font-weight: 600;
 }
-
 .link-text:hover {
   text-decoration: underline;
 }
-
 .backlog-item-wrapper {
   cursor: grab;
   user-select: none;
 }
-
 .backlog-item-wrapper:active {
   cursor: grabbing;
-}
-
-.backlog-item-wrapper.dragging {
-  opacity: 0.5;
 }
 </style>

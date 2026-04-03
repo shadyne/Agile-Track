@@ -36,7 +36,7 @@
               @keydown.enter="simpanField('judul', editJudul)"
               @blur="simpanField('judul', editJudul)"
             />
-
+            <!-- 
             <div class="epic-top-actions">
               <v-menu>
                 <template #activator="{ props: menuProps }">
@@ -73,7 +73,7 @@
                 density="compact"
                 size="small"
               />
-            </div>
+            </div> -->
           </div>
 
           <div class="mb-6">
