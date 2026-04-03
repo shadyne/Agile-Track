@@ -65,35 +65,6 @@
             />
 
             <div class="epic-top-actions">
-              <v-menu>
-                <template #activator="{ props: menuProps }">
-                  <v-btn
-                    variant="outlined"
-                    density="compact"
-                    size="small"
-                    v-bind="menuProps"
-                    :color="getStatusColor(item.status)"
-                    style="font-size: 11px; font-weight: 700"
-                  >
-                    {{ getStatusLabel(item.status) }}
-                    <v-icon icon="mdi-chevron-down" size="14" class="ml-1" />
-                  </v-btn>
-                </template>
-                <v-list
-                  density="compact"
-                  min-width="160"
-                  rounded="lg"
-                  elevation="3"
-                >
-                  <v-list-item
-                    v-for="s in statusOptions"
-                    :key="s.value"
-                    :title="s.label"
-                    @click="simpanField('status', s.value)"
-                  />
-                </v-list>
-              </v-menu>
-
               <template v-if="isDirty">
                 <v-btn
                   color="cancel"
