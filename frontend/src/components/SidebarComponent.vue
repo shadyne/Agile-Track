@@ -11,7 +11,7 @@
         to="/"
         class="menu-item"
         :class="{ active: activeView === 'dashboard' }"
-        @click="emit('update:activeView', 'dashboard')"
+        @click="handleDashboardClick"
       >
         <v-icon icon="mdi-view-dashboard-outline" size="18" />
         Dashboard
@@ -213,7 +213,7 @@ const emit = defineEmits<{
 
 const router = useRouter();
 const spaceStore = useSpaceStore();
-const spacesExpanded = ref<boolean>(true);
+const spacesExpanded = ref<boolean>(false);
 const expandedSpaces = ref<number[]>([]);
 
 onMounted(() => {
@@ -229,6 +229,11 @@ onMounted(() => {
     }
   }
 });
+const handleDashboardClick = () => {
+  spacesExpanded.value = false;
+  expandedSpaces.value = [];
+  emit("update:activeView", "dashboard");
+};
 
 const toggleExpandSpace = (spaceId: number): void => {
   const idx = expandedSpaces.value.indexOf(spaceId);

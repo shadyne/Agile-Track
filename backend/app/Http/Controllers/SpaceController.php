@@ -11,7 +11,10 @@ class SpaceController extends Controller
 {
     public function index(Request $request)
     {
-        $spaces = Space::where('user_id', $request->user()->id)
+        $user = $request->user();
+
+        $spaces = Space::where('user_id', $user->id)
+            ->orWhereJsonContains('member_emails', $user->email)
             ->withCount('tasks')
             ->orderBy('created_at', 'desc')
             ->get();

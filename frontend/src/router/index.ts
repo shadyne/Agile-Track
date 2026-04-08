@@ -38,25 +38,25 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
     children: [
       {
-        path: "/board/:boardId",
+        path: "board/:boardId",
         name: "board",
         component: BoardView,
         meta: { requiresAuth: true },
       },
       {
-        path: "/board/:boardId/epic/:epicId",
+        path: "board/:boardId/epic/:epicId",
         name: "epic-detail",
         component: EpicDetailView,
         meta: { requiresAuth: true },
       },
       {
-        path: "/board/:boardId/item/:itemId",
+        path: "board/:boardId/item/:itemId",
         name: "item-detail",
         component: ItemDetailView,
         meta: { requiresAuth: true },
       },
       {
-        path: "/workflow-settings",
+        path: "workflow-settings",
         name: "workflow",
         component: WorkflowSettings,
         meta: { requiresAuth: true },
