@@ -9,11 +9,19 @@ use Illuminate\Http\Request;
 
 class SprintController extends Controller
 {
+    private function authorizeBoard(int $boardId, Request $request): Board
+    {
+        $user = $request->user();
+
+        return Board::whereHas('space', function ($q) use ($user) {
+            $q->where('user_id', $user->id)
+              ->orWhereJsonContains('member_emails', $user->email);
+        })->findOrFail($boardId);
+    }
+
     public function index(Request $request, $boardId)
     {
-        Board::whereHas('space', function ($q) use ($request) {
-            $q->where('user_id', $request->user()->id);
-        })->findOrFail($boardId);
+        $this->authorizeBoard($boardId, $request);
 
         $sprints = Sprint::with([
             'items' => function ($q) {
@@ -29,19 +37,9 @@ class SprintController extends Controller
         return response()->json($sprints);
     }
 
-    public function rename(Request $request, $boardId, $sprintId)
-    {
-        $sprint = Sprint::where('board_id', $boardId)->findOrFail($sprintId);
-        $request->validate(['nama' => 'required|string|max:100']);
-        $sprint->update(['nama' => $request->nama]);
-        return response()->json(['message' => 'Sprint direname', 'data' => $sprint]);
-    }
-
     public function store(Request $request, $boardId)
     {
-        Board::whereHas('space', function ($q) use ($request) {
-            $q->where('user_id', $request->user()->id);
-        })->findOrFail($boardId);
+        $this->authorizeBoard($boardId, $request);
 
         $request->validate([
             'nama'       => 'nullable|string|max:100',
@@ -66,8 +64,22 @@ class SprintController extends Controller
         ], 201);
     }
 
+    public function rename(Request $request, $boardId, $sprintId)
+    {
+        $this->authorizeBoard($boardId, $request);
+
+        $sprint = Sprint::where('board_id', $boardId)->findOrFail($sprintId);
+
+        $request->validate(['nama' => 'required|string|max:100']);
+        $sprint->update(['nama' => $request->nama]);
+
+        return response()->json(['message' => 'Sprint direname', 'data' => $sprint]);
+    }
+
     public function start(Request $request, $boardId, $sprintId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $sprint = Sprint::where('board_id', $boardId)->findOrFail($sprintId);
 
         $request->validate([
@@ -89,11 +101,12 @@ class SprintController extends Controller
 
     public function complete(Request $request, $boardId, $sprintId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $sprint = Sprint::where('board_id', $boardId)->findOrFail($sprintId);
 
-        $allItems = EpicItem::where('sprint_id', $sprintId)->get();
-
-        $doneItems  = $allItems->where('status', 'done_by_qa');
+        $allItems    = EpicItem::where('sprint_id', $sprintId)->get();
+        $doneItems   = $allItems->where('status', 'done_by_qa');
         $undoneItems = $allItems->where('status', '!=', 'done_by_qa');
 
         EpicItem::whereIn('id', $doneItems->pluck('id'))
@@ -116,19 +129,20 @@ class SprintController extends Controller
             : null;
 
         return response()->json([
-            'message'      => 'Sprint selesai',
-            'done_count'   => $doneItems->count(),
-            'moved_count'  => $undoneItems->count(),
-            'next_sprint'  => $nextSprint,
+            'message'     => 'Sprint selesai',
+            'done_count'  => $doneItems->count(),
+            'moved_count' => $undoneItems->count(),
+            'next_sprint' => $nextSprint,
         ]);
     }
 
     public function destroy(Request $request, $boardId, $sprintId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $sprint = Sprint::where('board_id', $boardId)->findOrFail($sprintId);
 
         EpicItem::where('sprint_id', $sprintId)->update(['sprint_id' => null]);
-
         $sprint->delete();
 
         return response()->json(['message' => 'Sprint dihapus']);

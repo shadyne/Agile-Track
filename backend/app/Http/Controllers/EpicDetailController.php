@@ -6,13 +6,27 @@ use App\Models\Epic;
 use App\Models\EpicItem;
 use App\Models\EpicComment;
 use App\Models\ActivityLog;
+use App\Models\Board;
 use App\Models\User;
 use Illuminate\Http\Request;
 
 class EpicDetailController extends Controller
 {
-    public function show($boardId, $epicId)
+
+    private function authorizeBoard(int $boardId, Request $request): Board
     {
+        $user = $request->user();
+
+        return Board::whereHas('space', function ($q) use ($user) {
+            $q->where('user_id', $user->id)
+              ->orWhereJsonContains('member_emails', $user->email);
+        })->findOrFail($boardId);
+    }
+
+    public function show(Request $request, $boardId, $epicId)
+    {
+        $this->authorizeBoard($boardId, $request);
+
         $epic = Epic::with([
             'items.user',
             'user',
@@ -28,12 +42,14 @@ class EpicDetailController extends Controller
 
     public function update(Request $request, $boardId, $epicId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $epic = Epic::where('board_id', $boardId)->findOrFail($epicId);
 
         $request->validate([
             'judul'             => 'sometimes|string|max:20',
             'priority'          => 'sometimes|in:highest,high,medium,low,lowest',
-            'status'            => 'sometimes|in:to_do,in_progress,done_by_dev,testing,done_by_qa',
+            'status'            => 'sometimes|string|max:50',
             'labels'            => 'sometimes|array|max:5',
             'labels.*'          => 'string|max:50',
             'deskripsi'         => 'sometimes|nullable|string',
@@ -79,6 +95,9 @@ class EpicDetailController extends Controller
 
     public function storeChild(Request $request, $boardId, $epicId)
     {
+        $board = $this->authorizeBoard($boardId, $request);
+        $board->load('space');
+
         $epic = Epic::where('board_id', $boardId)->findOrFail($epicId);
 
         $request->validate([
@@ -106,6 +125,8 @@ class EpicDetailController extends Controller
 
     public function storeComment(Request $request, $boardId, $epicId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         Epic::where('board_id', $boardId)->findOrFail($epicId);
 
         $request->validate([
@@ -126,6 +147,8 @@ class EpicDetailController extends Controller
 
     public function deleteComment(Request $request, $boardId, $epicId, $commentId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $comment = EpicComment::where('epic_id', $epicId)
             ->where('user_id', $request->user()->id)
             ->findOrFail($commentId);
@@ -135,8 +158,10 @@ class EpicDetailController extends Controller
         return response()->json(['message' => 'Komentar dihapus']);
     }
 
-    public function history($boardId, $epicId)
+    public function history(Request $request, $boardId, $epicId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $epic = Epic::where('board_id', $boardId)->findOrFail($epicId);
 
         $logs = ActivityLog::with('user')

@@ -13,11 +13,20 @@ use Illuminate\Http\Request;
 
 class BacklogController extends Controller
 {
+
+    private function authorizeBoard(int $boardId, Request $request): Board
+    {
+        $user = $request->user();
+
+        return Board::whereHas('space', function ($q) use ($user) {
+            $q->where('user_id', $user->id)
+              ->orWhereJsonContains('member_emails', $user->email);
+        })->findOrFail($boardId);
+    }
+
     public function index(Request $request, $boardId)
     {
-        Board::whereHas('space', function ($q) use ($request) {
-            $q->where('user_id', $request->user()->id);
-        })->findOrFail($boardId);
+        $this->authorizeBoard($boardId, $request);
 
         $backlogItems = EpicItem::with(['epic', 'assignee', 'children.assignee', 'children.epic'])
             ->where('board_id', $boardId)
@@ -45,10 +54,8 @@ class BacklogController extends Controller
 
     public function store(Request $request, $boardId)
     {
-        $board = Board::with('space')
-            ->whereHas('space', function ($q) use ($request) {
-                $q->where('user_id', $request->user()->id);
-            })->findOrFail($boardId);
+        $board = $this->authorizeBoard($boardId, $request);
+        $board->load('space');
 
         $request->validate([
             'judul'             => 'required|string|max:255',
@@ -119,6 +126,8 @@ class BacklogController extends Controller
 
     public function updateStatus(Request $request, $boardId, $itemId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $item = EpicItem::where('board_id', $boardId)->findOrFail($itemId);
 
         $request->validate([
@@ -135,8 +144,8 @@ class BacklogController extends Controller
 
         if ($statusValue === 'done_by_qa' && empty($item->epic_id)) {
             return response()->json([
-                'message'     => 'Cannot set "Done by QA" — please assign this item to an epic first.',
-                'error_code'  => 'NO_EPIC_FOR_DONE_BY_QA',
+                'message'    => 'Cannot set "Done by QA" — please assign this item to an epic first.',
+                'error_code' => 'NO_EPIC_FOR_DONE_BY_QA',
             ], 422);
         }
 
@@ -147,6 +156,8 @@ class BacklogController extends Controller
 
     public function moveToSprint(Request $request, $boardId, $itemId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $item = EpicItem::where('board_id', $boardId)->findOrFail($itemId);
 
         $request->validate([
@@ -163,6 +174,8 @@ class BacklogController extends Controller
 
     public function updateEpic(Request $request, $boardId, $itemId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $item = EpicItem::where('board_id', $boardId)->findOrFail($itemId);
 
         $request->validate([
@@ -176,7 +189,6 @@ class BacklogController extends Controller
             'data'    => $item->load(['epic', 'assignee']),
         ]);
     }
-
 
     private function generateKode(string $spaceKey, int $boardId): string
     {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Space;
 use App\Models\Epic;
+use App\Models\Board;
 use App\Models\EpicItem;
 use App\Models\WorkflowStatus;
 use Illuminate\Http\Request;
@@ -12,15 +13,18 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
-
     public function global(Request $request)
     {
-        $epics = Epic::whereHas('board.space', function ($q) use ($request) {
-            $q->where('user_id', $request->user()->id);
+        $user = $request->user();
+
+        $epics = Epic::whereHas('board.space', function ($q) use ($user) {
+            $q->where('user_id', $user->id)
+            ->orWhereJsonContains('member_emails', $user->email);
         });
 
-        $epicItems = EpicItem::whereHas('board.space', function ($q) use ($request) {
-            $q->where('user_id', $request->user()->id);
+        $epicItems = EpicItem::whereHas('board.space', function ($q) use ($user) {
+            $q->where('user_id', $user->id)
+            ->orWhereJsonContains('member_emails', $user->email);
         });
 
         $sevenDaysAgo = Carbon::now()->subDays(7);
@@ -132,16 +136,29 @@ class DashboardController extends Controller
 
     public function index(Request $request, $spaceId)
     {
+        $user = $request->user();
+
         $space = Space::where('id', $spaceId)
-            ->where('user_id', $request->user()->id)
+            ->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id)
+                ->orWhereJsonContains('member_emails', $user->email);
+            })
             ->firstOrFail();
 
-        $epics = Epic::whereHas('board.space', function ($q) use ($spaceId) {
-            $q->where('id', $spaceId);
+        $epics = Epic::whereHas('board.space', function ($q) use ($spaceId, $user) {
+            $q->where('id', $spaceId)
+            ->where(function ($q2) use ($user) {
+                $q2->where('user_id', $user->id)
+                    ->orWhereJsonContains('member_emails', $user->email);
+            });
         });
 
         $epicItems = EpicItem::whereHas('board.space', function ($q) use ($spaceId) {
-            $q->where('id', $spaceId);
+            $q->where('id', $spaceId)
+            ->where(function ($q2) use ($user) {
+                $q2->where('user_id', $user->id)
+                    ->orWhereJsonContains('member_emails', $user->email);
+            });
         });
 
         $sevenDaysAgo = Carbon::now()->subDays(7);

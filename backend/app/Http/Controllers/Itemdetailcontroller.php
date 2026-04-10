@@ -5,13 +5,27 @@ namespace App\Http\Controllers;
 use App\Models\EpicItem;
 use App\Models\Epic;
 use App\Models\ActivityLog;
+use App\Models\Board;
 use App\Models\User;
 use Illuminate\Http\Request;
 
 class ItemDetailController extends Controller
 {
+
+    private function authorizeBoard(int $boardId, Request $request): Board
+    {
+        $user = $request->user();
+
+        return Board::whereHas('space', function ($q) use ($user) {
+            $q->where('user_id', $user->id)
+              ->orWhereJsonContains('member_emails', $user->email);
+        })->findOrFail($boardId);
+    }
+
     public function show(Request $request, $boardId, $itemId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $item = EpicItem::with([
             'epic',
             'user',
@@ -30,12 +44,14 @@ class ItemDetailController extends Controller
 
     public function update(Request $request, $boardId, $itemId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $item = EpicItem::where('board_id', $boardId)->findOrFail($itemId);
 
         $request->validate([
             'judul'             => 'sometimes|string|max:255',
             'priority'          => 'sometimes|in:highest,high,medium,low,lowest',
-            'status'            => 'sometimes|in:to_do,in_progress,done_by_dev,testing,done_by_qa',
+            'status'            => 'sometimes|string|max:50',
             'type'              => 'sometimes|in:story,task,qa_task,bug',
             'labels'            => 'sometimes|array|max:5',
             'labels.*'          => 'string|max:50',
@@ -87,11 +103,13 @@ class ItemDetailController extends Controller
 
     public function storeChild(Request $request, $boardId, $parentId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $parent = EpicItem::where('board_id', $boardId)->findOrFail($parentId);
 
         $request->validate([
-            'judul'    => 'required|string|max:255',
-            'epic_id'  => 'nullable|exists:epics,id',
+            'judul'   => 'required|string|max:255',
+            'epic_id' => 'nullable|exists:epics,id',
         ]);
 
         $epicId = $request->epic_id ?? $parent->epic_id;
@@ -117,8 +135,10 @@ class ItemDetailController extends Controller
         ]);
     }
 
-    public function history($boardId, $itemId)
+    public function history(Request $request, $boardId, $itemId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $item = EpicItem::where('board_id', $boardId)->findOrFail($itemId);
 
         $logs = ActivityLog::with('user')

@@ -12,11 +12,20 @@ use Illuminate\Http\Request;
 
 class EpicController extends Controller
 {
+
+    private function authorizeBoard(int $boardId, Request $request): Board
+    {
+        $user = $request->user();
+
+        return Board::whereHas('space', function ($q) use ($user) {
+            $q->where('user_id', $user->id)
+              ->orWhereJsonContains('member_emails', $user->email);
+        })->findOrFail($boardId);
+    }
+
     public function index(Request $request, $boardId)
     {
-        Board::whereHas('space', function ($q) use ($request) {
-            $q->where('user_id', $request->user()->id);
-        })->findOrFail($boardId);
+        $this->authorizeBoard($boardId, $request);
 
         $epics = Epic::with(['items', 'user', 'assignee', 'attachments'])
             ->where('board_id', $boardId)
@@ -28,10 +37,8 @@ class EpicController extends Controller
 
     public function store(Request $request, $boardId)
     {
-        $board = Board::with('space')
-            ->whereHas('space', function ($q) use ($request) {
-                $q->where('user_id', $request->user()->id);
-            })->findOrFail($boardId);
+        $board = $this->authorizeBoard($boardId, $request);
+        $board->load('space');
 
         $request->validate([
             'judul'           => 'required|string|max:20',
@@ -59,7 +66,6 @@ class EpicController extends Controller
         }
 
         $resolvedAssigneeId = $this->resolveAssigneeId($request->assignee_id, $request->user()->id);
-
         $kode = $this->generateKode($board->space->key, $boardId);
 
         $epic = Epic::create([
@@ -98,6 +104,8 @@ class EpicController extends Controller
 
     public function getLabels(Request $request, $boardId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $labels = Label::where('board_id', $boardId)
             ->orderBy('nama')
             ->pluck('nama');
@@ -116,6 +124,8 @@ class EpicController extends Controller
 
     public function update(Request $request, $boardId, $epicId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $epic = Epic::where('board_id', $boardId)->findOrFail($epicId);
 
         $request->validate([
@@ -146,17 +156,22 @@ class EpicController extends Controller
         ]);
     }
 
-    public function destroy($boardId, $epicId)
+    public function destroy(Request $request, $boardId, $epicId)
     {
+        $this->authorizeBoard($boardId, $request);
+
         $epic = Epic::where('board_id', $boardId)->findOrFail($epicId);
         $epic->delete();
+
         return response()->json(['message' => 'Epic berhasil dihapus']);
     }
 
     public function storeItem(Request $request, $boardId, $epicId)
     {
+        $board = $this->authorizeBoard($boardId, $request);
+        $board->load('space');
+
         $epic = Epic::where('board_id', $boardId)->findOrFail($epicId);
-        $board = Board::with('space')->findOrFail($boardId);
 
         $request->validate([
             'judul'      => 'required|string|max:255',
