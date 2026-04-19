@@ -119,6 +119,7 @@ class DashboardController extends Controller
                 'bg_color'  => $workflow?->bg_color ?? '#f3f4f6',
                 'text_color'=> $workflow?->text_color ?? '#ffffff',
                 'category'  => $workflow?->category ?? 'default',
+                'sort_order' => $workflow?->sort_order ?? 999,
             ];
         }
 
@@ -153,7 +154,7 @@ class DashboardController extends Controller
             });
         });
 
-        $epicItems = EpicItem::whereHas('board.space', function ($q) use ($spaceId) {
+        $epicItems = EpicItem::whereHas('board.space', function ($q) use ($spaceId,$user) {
             $q->where('id', $spaceId)
             ->where(function ($q2) use ($user) {
                 $q2->where('user_id', $user->id)

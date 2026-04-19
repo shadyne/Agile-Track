@@ -221,18 +221,8 @@ class BacklogController extends Controller
     {
         if (empty($status)) return $default;
 
-        $hardcoded = ['to_do', 'in_progress', 'done_by_dev', 'testing', 'done_by_qa'];
-        if (in_array($status, $hardcoded)) return $status;
-
         $workflowStatus = WorkflowStatus::where('value', $status)->first();
-        if ($workflowStatus) {
-            $categoryMap = [
-                'To Do'       => 'to_do',
-                'In Progress' => 'in_progress',
-                'Done'        => 'done_by_qa',
-            ];
-            return $categoryMap[$workflowStatus->category] ?? 'to_do';
-        }
+        if ($workflowStatus) return $status;
 
         return $default;
     }
